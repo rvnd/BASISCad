@@ -1,0 +1,110 @@
+/* Layout for the Milestone 0 shell: a header on top, the 3D viewport
+   filling the rest of the screen. Component-specific styles live with
+   their component's class names below; later milestones add panel styles
+   here rather than in per-component CSS files. */
+
+:root {
+  --brand-red: #d03f43;
+  --brand-black: #000000;
+  --brand-white: #ffffff;
+  --text-muted: #555555;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Roboto, Arial, Helvetica, sans-serif;
+  color: var(--brand-black);
+  background: var(--brand-white);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+.app-main {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* Header — black bar, white wordmark, red chevrons. */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--brand-black);
+  color: var(--brand-white);
+  flex-shrink: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-chevrons {
+  flex-shrink: 0;
+}
+
+.brand-wordmark {
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.brand-basis {
+  font-weight: 700;
+}
+
+.brand-cad {
+  font-weight: 400;
+}
+
+.header-status {
+  font-size: 13px;
+  color: #cccccc;
+  white-space: nowrap;
+}
+
+/* Viewport — the Three.js canvas fills this container. */
+.viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--brand-white);
+}
+
+.viewport canvas {
+  display: block;
+}
+
+.viewport-note {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: rgb(255 255 255 / 0.85);
+  border: 1px solid #dddddd;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1;
+}

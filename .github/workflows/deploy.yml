@@ -1,0 +1,56 @@
+name: Deploy to GitHub Pages
+
+# Milestone 0: every push to main rebuilds the app and publishes it to
+# https://rvnd.github.io/BASISCad/ — no manual upload, no server.
+# Requires the repo to be public (GitHub Pages on the free plan) and
+# Pages set to "GitHub Actions" as its source (Settings → Pages).
+# The build output is served from the /BASISCad/ base path, set in
+# vite.config.ts — keep the two in sync.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload built site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
