@@ -1,16 +1,55 @@
+import { useEffect, useRef, useState } from 'react';
 import { BRAND_RED } from '../app/constants';
 
 /**
  * The BASIScad header. Black bar, white wordmark, red chevrons — the
- * frozen branding from the prototype. No buttons yet: Save / Open / New /
- * Print / Help arrive with Milestones 1 and 5, and each one must work
- * before it is added (the prototype shipped dead Settings and Help
- * buttons; this app does not).
+ * frozen branding from the prototype.
  *
- * The chevron mark is inline SVG, not an image file, so it renders at
- * any size and needs no asset fetch.
+ * The design actions live behind a single Menu button at the top right.
+ * The menu opens as a dropdown under the button (absolutely positioned,
+ * so the header's fixed height never changes) and closes on an outside
+ * click or Escape. The actions themselves are not built yet — Save /
+ * Open / New arrive with Milestone 5, Print with Milestone 12, Help
+ * with Milestone 13 — so each is a disabled button that says which
+ * milestone adds it, instead of a dead-looking button that pretends to
+ * work (the prototype shipped dead Settings and Help buttons; this app
+ * does not).
  */
+
+const ACTIONS = [
+  { label: 'Save Design', milestone: 5 },
+  { label: 'Open Design', milestone: 5 },
+  { label: 'New Design', milestone: 5 },
+  { label: 'Print Design', milestone: 12 },
+  { label: 'Help', milestone: 13 },
+] as const;
+
 export default function Header() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    const onPointerDown = (event: MouseEvent): void => {
+      if (menuRef.current !== null && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuOpen]);
+
   return (
     <header className="header">
       <div className="brand" aria-label="BASIScad">
@@ -43,7 +82,37 @@ export default function Header() {
           <span className="brand-cad">cad</span>
         </span>
       </div>
-      <span className="header-status">Milestone 0 · empty workplane</span>
+      <span className="header-status">Milestone 1 · empty workplane</span>
+      <div className="header-menu" ref={menuRef}>
+        <button
+          type="button"
+          className="menu-button"
+          aria-haspopup="true"
+          aria-expanded={menuOpen}
+          onClick={() => {
+            setMenuOpen((wasOpen) => !wasOpen);
+          }}
+        >
+          Menu
+        </button>
+        {menuOpen && (
+          <div className="menu-panel" role="menu" aria-label="Design actions">
+            {ACTIONS.map((action) => (
+              <button
+                key={action.label}
+                type="button"
+                role="menuitem"
+                className="menu-action"
+                disabled
+                title={`${action.label} — Milestone ${action.milestone}`}
+              >
+                {action.label}
+              </button>
+            ))}
+            <p className="menu-note">These arrive in later milestones.</p>
+          </div>
+        )}
+      </div>
     </header>
   );
 }

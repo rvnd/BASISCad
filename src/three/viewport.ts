@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { getCameraView } from './cameraViews';
+import type { CameraViewId } from './cameraViews';
 import { createFramingCamera, createWorkplane } from './workplane';
 
 /**
@@ -17,7 +19,18 @@ import { createFramingCamera, createWorkplane } from './workplane';
 
 export interface ViewportHandle {
   dispose(): void;
+  /** Move the camera to a named view (Top / Front / … / 3D), looking at the workplane centre. */
+  setView(viewId: CameraViewId): void;
+  /** Dolly the camera closer along its current direction. */
+  zoomIn(): void;
+  /** Dolly the camera farther away along its current direction. */
+  zoomOut(): void;
+  /** Back to the Milestone 0 framing: the (1, 1, 1) diagonal, whole workplane in view. */
+  fit(): void;
 }
+
+/** Zoom step: each click moves the camera 20% closer / farther. */
+const ZOOM_FACTOR = 0.8;
 
 function disposeObject(object: THREE.Object3D): void {
   if (object instanceof THREE.Mesh) {
@@ -80,7 +93,47 @@ export function createViewport(container: HTMLElement): ViewportHandle {
   };
   tick();
 
+  /**
+   * Dolly along the camera's current direction, clamped to the
+   * OrbitControls distance limits and to the polar-angle limit, so the
+   * camera can never go below the workplane or inside the plane.
+   */
+  const dolly = (factor: number): void => {
+    const offset = camera.position.clone().sub(controls.target);
+    const spherical = new THREE.Spherical().setFromVector3(offset);
+    spherical.radius = THREE.MathUtils.clamp(
+      spherical.radius * factor,
+      controls.minDistance,
+      controls.maxDistance,
+    );
+    spherical.phi = THREE.MathUtils.clamp(spherical.phi, 0, controls.maxPolarAngle);
+    camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(spherical));
+    controls.update();
+  };
+
+  const applyView = (viewId: CameraViewId): void => {
+    const view = getCameraView(viewId);
+    if (view === undefined) {
+      return;
+    }
+    camera.position.set(view.position[0], view.position[1], view.position[2]);
+    controls.target.set(0, 0, 0);
+    controls.update();
+  };
+
   return {
+    setView(viewId: CameraViewId): void {
+      applyView(viewId);
+    },
+    zoomIn(): void {
+      dolly(ZOOM_FACTOR);
+    },
+    zoomOut(): void {
+      dolly(1 / ZOOM_FACTOR);
+    },
+    fit(): void {
+      applyView('3d');
+    },
     dispose(): void {
       disposed = true;
       cancelAnimationFrame(animationFrame);
