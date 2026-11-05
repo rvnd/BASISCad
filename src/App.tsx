@@ -1,17 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Header from './components/Header.tsx';
+import MoveRotatePanel from './components/MoveRotatePanel.tsx';
+import type { SingleSelection } from './components/MoveRotatePanel.tsx';
 import ShapesPanel from './components/ShapesPanel.tsx';
 import ViewControls from './components/ViewControls.tsx';
 import Viewport from './components/Viewport.tsx';
 import { PIECE_COLOURS, SPEC_PIECES, isPieceReady, standInPieces } from './app/library';
 import type { LibraryPiece, PieceCategory, PieceSizeMm } from './app/library';
-import { clampPosition, createPlacedPiece, removePlaced, toggleSelection } from './app/design';
-import type { PlacedPiece, SelectionMode } from './app/design';
+import {
+  addPiecesRotation,
+  clampPosition,
+  createPlacedPiece,
+  flipPiecesRotation,
+  removePlaced,
+  resetPiecesRotation,
+  setPiecesPosition,
+  setPiecesRotation,
+  toggleSelection,
+} from './app/design';
+import type { PlacedPiece, PositionMm, SelectionMode } from './app/design';
 import { registerGeometry } from './three/libraryGeometry';
 import { loadPieceGeometry, loadPieceGeometryFromUrl } from './three/loadPieceFile';
 import { DEFAULT_CAMERA_VIEW_ID } from './three/cameraViews';
 import type { CameraViewId } from './three/cameraViews';
 import type { ViewportDesignCallbacks, ViewportHandle } from './three/viewport';
+import type { RotationAxis } from './three/rotationRings';
 
 /**
  * App shell — composition and view state only, no 3D logic.
@@ -49,6 +62,8 @@ export default function App() {
   const [placed, setPlaced] = useState<readonly PlacedPiece[]>([]);
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('move');
+  // Milestone 4: the quick-rotate step size for the panel buttons.
+  const [rotateStep, setRotateStep] = useState(45);
   const placedCounter = useRef(0);
 
   // Load the bundled temporary stand-in STLs (see
@@ -147,12 +162,26 @@ export default function App() {
     viewportRef.current?.syncDesign(placed, libraryPieces, selectedIds);
   }, [placed, libraryPieces, selectedIds, viewportReady]);
 
+  // Keep the viewport's drag behaviour in step with the selection mode.
+  useEffect(() => {
+    viewportRef.current?.setSelectionMode(selectionMode);
+  }, [selectionMode, viewportReady]);
+
+  const sizeById: ReadonlyMap<string, PieceSizeMm> = useMemo(() => {
+    const map = new Map<string, PieceSizeMm>();
+    for (const piece of libraryPieces) {
+      if (piece.sizeMm !== null) {
+        map.set(piece.id, piece.sizeMm);
+      }
+    }
+    return map;
+  }, [libraryPieces]);
+
   const designCallbacks: ViewportDesignCallbacks = useMemo(
     () => ({
       onSelectPiece(placedId: string, additive: boolean): void {
         setSelectedIds((previous) => toggleSelection(previous, placedId, additive));
-        // Selecting always returns the piece to Move mode, keeping its rotation.
-        setSelectionMode('move');
+        // Selecting keeps the current mode and the piece's rotation.
       },
       onDeselectAll(): void {
         setSelectedIds([]);
@@ -167,10 +196,20 @@ export default function App() {
               libraryByIdRef.current.get(piece.libraryId)?.sizeMm ?? null;
             return {
               ...piece,
-              position: sizeMm === null ? { x, z } : clampPosition(x, z, sizeMm),
+              position:
+                sizeMm === null
+                  ? { ...piece.position, x, z }
+                  : clampPosition(x, piece.position.y, z, sizeMm),
             };
           }),
         );
+      },
+      onRotatePiece(placedId: string, axis: RotationAxis, angleDeg: number): void {
+        setPlaced((previous) => setPiecesRotation(previous, [placedId], axis, angleDeg));
+      },
+      onBeginRotate(): void {
+        // Grabbing a ring switches the selection to Rotate mode.
+        setSelectionMode('rotate');
       },
     }),
     [],
@@ -203,12 +242,80 @@ export default function App() {
     setSelectedIds([]);
   }, [selectedIds]);
 
+  // Milestone 4: precise move and rotate, acting on the selection.
+  const moveSelected = useCallback(
+    (axis: keyof PositionMm, value: number) => {
+      setPlaced((previous) => {
+        const single = previous.find((piece) => piece.id === selectedIds[0]);
+        if (single === undefined) {
+          return previous;
+        }
+        return setPiecesPosition(
+          previous,
+          selectedIds,
+          { ...single.position, [axis]: value },
+          sizeById,
+        );
+      });
+    },
+    [selectedIds, sizeById],
+  );
+
+  const rotateStepSelected = useCallback(
+    (axis: RotationAxis, direction: 1 | -1) => {
+      setPlaced((previous) =>
+        addPiecesRotation(previous, selectedIds, axis, direction * rotateStep),
+      );
+    },
+    [selectedIds, rotateStep],
+  );
+
+  const setAngleSelected = useCallback(
+    (axis: RotationAxis, degrees: number) => {
+      setPlaced((previous) => setPiecesRotation(previous, selectedIds, axis, degrees));
+    },
+    [selectedIds],
+  );
+
+  const flipSelected = useCallback(
+    (axis: RotationAxis) => {
+      setPlaced((previous) => flipPiecesRotation(previous, selectedIds, axis));
+    },
+    [selectedIds],
+  );
+
+  const resetOrientationSelected = useCallback(() => {
+    setPlaced((previous) => resetPiecesRotation(previous, selectedIds));
+  }, [selectedIds]);
+
   const selectedPieces: readonly { id: string; name: string }[] = selectedIds.flatMap((id) => {
     const piece = placed.find((entry) => entry.id === id);
     const libraryPiece =
       piece === undefined ? undefined : libraryPieces.find((entry) => entry.id === piece.libraryId);
     return libraryPiece === undefined ? [] : [{ id, name: libraryPiece.name }];
   });
+
+  // The single selected piece, with its live position and rotation,
+  // for the Move/Rotate panel; null when several are selected.
+  const singleSelected: SingleSelection | null =
+    selectedIds.length === 1
+      ? (() => {
+          const piece = placed.find((entry) => entry.id === selectedIds[0]);
+          const libraryPiece =
+            piece === undefined
+              ? undefined
+              : libraryPieces.find((entry) => entry.id === piece.libraryId);
+          if (piece === undefined || libraryPiece === undefined) {
+            return null;
+          }
+          return {
+            id: piece.id,
+            name: libraryPiece.name,
+            position: piece.position,
+            rotation: piece.rotation,
+          };
+        })()
+      : null;
 
   return (
     <div className="app">
@@ -227,6 +334,20 @@ export default function App() {
         />
         <div className="viewport-wrap">
           <Viewport onReady={onViewportReady} designCallbacks={designCallbacks} />
+          <MoveRotatePanel
+            key={singleSelected?.id ?? `multi-${selectedIds.length}`}
+            single={singleSelected}
+            selectedCount={selectedIds.length}
+            mode={selectionMode}
+            step={rotateStep}
+            onSetMode={setSelectionMode}
+            onSetStep={setRotateStep}
+            onMove={moveSelected}
+            onRotateStep={rotateStepSelected}
+            onSetAngle={setAngleSelected}
+            onFlip={flipSelected}
+            onResetOrientation={resetOrientationSelected}
+          />
         </div>
         <ShapesPanel
           pieces={libraryPieces}

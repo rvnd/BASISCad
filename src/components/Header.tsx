@@ -82,7 +82,7 @@ export default function Header() {
           <span className="brand-cad">cad</span>
         </span>
       </div>
-      <span className="header-status">Milestone 3 · place and drag</span>
+      <span className="header-status">Milestone 4 · precise move and rotate</span>
       <div className="header-menu" ref={menuRef}>
         <button
           type="button"
