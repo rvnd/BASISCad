@@ -60,6 +60,21 @@ export interface PieceSizeMm {
 }
 
 /**
+ * A temporary stand-in STL for a spec piece, from the internet (see
+ * `public/library/LIBRARY_SOURCES.md`). The file is bundled with the
+ * site and loaded at startup; the piece stays "STL needed" until its
+ * real STL arrives, and the stand-in is replaced then.
+ */
+export interface StandInSource {
+  /** Path under `public/`, e.g. 'library/apu-rack-mount.stl'. */
+  file: string;
+  /** Where the file came from. */
+  sourceUrl: string;
+  /** Licence of the file, e.g. 'CC0 1.0'. */
+  licence: string;
+}
+
+/**
  * One entry in the library. `source: 'spec'` entries are the 17 pieces
  * from the prototype and have no geometry until their STL is imported
  * (`geometryId` is null). `source: 'import'` entries were loaded from a
@@ -79,6 +94,8 @@ export interface LibraryPiece {
   source: 'spec' | 'import';
   /** Key into the geometry registry, or null when there is no geometry. */
   geometryId: string | null;
+  /** Temporary stand-in file, if this piece has one; undefined otherwise. */
+  standIn?: StandInSource;
 }
 
 /** True when the piece has geometry and can be placed on the workplane. */
@@ -118,9 +135,16 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Yellow',
     colourHex: '#FFD500',
     holeCount: 6,
-    sizeMm: null,
+    // Temporary stand-in size, as imported (see LIBRARY_SOURCES.md).
+    sizeMm: { x: 178, y: 8, z: 51.4 },
     source: 'spec',
     geometryId: null,
+    standIn: {
+      file: 'library/apu-rack-mount.stl',
+      sourceUrl:
+        'https://github.com/azdle/printables/blob/master/rack-mount-stuff/apu-rack-mount.stl',
+      licence: 'CC0 1.0',
+    },
   },
   {
     id: 'girder-1x7',
@@ -229,9 +253,15 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Red',
     colourHex: '#D03F43',
     holeCount: null,
-    sizeMm: null,
+    // Temporary stand-in size, as imported (see LIBRARY_SOURCES.md).
+    sizeMm: { x: 22, y: 16, z: 32 },
     source: 'spec',
     geometryId: null,
+    standIn: {
+      file: 'library/l-bracket.stl',
+      sourceUrl: 'https://github.com/azdle/printables/blob/master/l-bracket/l-bracket.stl',
+      licence: 'CC0 1.0',
+    },
   },
   {
     id: 'brace-s',
@@ -263,9 +293,15 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Red',
     colourHex: '#D03F43',
     holeCount: 4,
-    sizeMm: null,
+    // Temporary stand-in size, as imported (see LIBRARY_SOURCES.md).
+    sizeMm: { x: 48, y: 5, z: 91 },
     source: 'spec',
     geometryId: null,
+    standIn: {
+      file: 'library/pc-board-mount.stl',
+      sourceUrl: 'https://github.com/azdle/printables/blob/master/unsorted/pc-board-mount.stl',
+      licence: 'CC0 1.0',
+    },
   },
   {
     id: 'plate-2x3',
@@ -283,6 +319,15 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
 /** The 17 spec pieces that still need their STL collected. */
 export function missingStlPieces(): readonly LibraryPiece[] {
   return SPEC_PIECES.filter((piece) => piece.geometryId === null);
+}
+
+/**
+ * Spec pieces with a temporary stand-in file. The stand-in gives the
+ * piece geometry to demo with, but the real STL is still missing —
+ * these pieces are still in `missingStlPieces()` until it arrives.
+ */
+export function standInPieces(): readonly LibraryPiece[] {
+  return SPEC_PIECES.filter((piece) => piece.standIn !== undefined);
 }
 
 /** Pieces in one category, in library order. */

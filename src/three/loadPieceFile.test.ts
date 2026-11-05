@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { isSupportedPieceFile, loadPieceGeometry, measureGeometry } from './loadPieceFile';
+import {
+  isSupportedPieceFile,
+  loadPieceGeometry,
+  measureGeometry,
+  orientFlat,
+} from './loadPieceFile';
 import { createPieceMesh, disposePieceMesh } from './pieces';
 
 /**
@@ -48,10 +53,15 @@ describe('loadPieceFile', () => {
     expect(isSupportedPieceFile('piece')).toBe(false);
   });
 
-  it('parses an ASCII STL and keeps its original size', async () => {
+  it('parses an ASCII STL, lays it flat, and keeps its original size', async () => {
     const loaded = await loadPieceGeometry(stlFile(TRIANGLE_STL));
-    // The fixture triangle lies in the XY plane: 10 mm in x, 10 mm in y, flat in z.
-    expect(loaded.sizeMm).toEqual({ x: 10, y: 10, z: 0 });
+    // The fixture triangle lies in the XY plane (Z-up, as 3D-printing
+    // STLs usually are), so the loader lays it flat in XZ: 10 mm in x,
+    // 10 mm in z, flat in y. Size is unchanged, only orientation moves.
+    // (toBeCloseTo: the -90° rotation leaves ~1e-16 float residue.)
+    expect(loaded.sizeMm.x).toBeCloseTo(10);
+    expect(loaded.sizeMm.y).toBeCloseTo(0);
+    expect(loaded.sizeMm.z).toBeCloseTo(10);
     const position = loaded.geometry.getAttribute('position');
     expect(position?.count).toBe(3);
   });
@@ -85,6 +95,17 @@ describe('loadPieceFile', () => {
     const geometry = new THREE.BoxGeometry(20, 5, 10);
     expect(measureGeometry(geometry)).toEqual({ x: 20, y: 5, z: 10 });
     geometry.dispose();
+  });
+
+  it('lays a Z-up geometry flat and leaves a flat one alone', () => {
+    const zUp = new THREE.BoxGeometry(20, 10, 5);
+    orientFlat(zUp);
+    expect(measureGeometry(zUp)).toEqual({ x: 20, y: 5, z: 10 });
+    zUp.dispose();
+    const flat = new THREE.BoxGeometry(20, 5, 10);
+    orientFlat(flat);
+    expect(measureGeometry(flat)).toEqual({ x: 20, y: 5, z: 10 });
+    flat.dispose();
   });
 });
 

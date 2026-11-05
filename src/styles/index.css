@@ -192,6 +192,11 @@ body {
   background: #d9f2e2;
 }
 
+.library-status-standin {
+  color: #5b4a00;
+  background: #ffedb3;
+}
+
 /* Import Pieces — file picker plus category/colour choices. */
 .import-pieces {
   margin-bottom: 4px;
