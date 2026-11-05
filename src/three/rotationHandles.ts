@@ -435,7 +435,10 @@ export function createProtractor(): THREE.Group {
 
   const label = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xffffff, depthTest: false }));
   label.name = 'rotation-protractor-label';
-  label.scale.setScalar(0.5);
+  // Large and readable: the label is ~1.8× the protractor radius wide
+  // (twice as wide as tall, matching its 2:1 canvas) with the axis
+  // letter in front of the angle ("X 46°").
+  label.scale.set(1.8, 0.9, 1);
   label.position.set(1.15, 0, 0);
   group.add(label);
 
@@ -470,11 +473,19 @@ export function showProtractor(
   } else {
     group.rotation.set(0, 0, 0);
   }
-  updateProtractorAngle(group, angleDeg);
+  updateProtractorAngle(group, axis, angleDeg);
 }
 
-/** Move the protractor's radius line and angle readout to a new angle, in degrees. */
-export function updateProtractorAngle(group: THREE.Group, angleDeg: number): void {
+/**
+ * Move the protractor's radius line and angle readout to a new angle,
+ * in degrees. The readout names its axis ("X 46°") so the drag can
+ * never be mistaken for another axis.
+ */
+export function updateProtractorAngle(
+  group: THREE.Group,
+  axis: RotationAxis,
+  angleDeg: number,
+): void {
   const a = THREE.MathUtils.degToRad(angleDeg);
   const line = protractorRadiusLineOf(group);
   if (line !== undefined) {
@@ -488,7 +499,7 @@ export function updateProtractorAngle(group: THREE.Group, angleDeg: number): voi
   const label = protractorLabelOf(group);
   if (label !== undefined) {
     label.position.set(Math.cos(a) * 1.15, Math.sin(a) * 1.15, 0);
-    setProtractorLabelText(label, `${Math.round(angleDeg)}°`);
+    setProtractorLabelText(label, `${axis.toUpperCase()} ${Math.round(angleDeg)}°`);
   }
 }
 
@@ -501,8 +512,8 @@ function setProtractorLabelText(label: THREE.Sprite, text: string): void {
   }
   const oldMap = material.map;
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 64;
+  canvas.width = 256;
+  canvas.height = 128;
   const context = canvas.getContext('2d');
   if (context === null) {
     return;
@@ -510,16 +521,16 @@ function setProtractorLabelText(label: THREE.Sprite, text: string): void {
   context.fillStyle = '#ffffff';
   if (typeof context.roundRect === 'function') {
     context.beginPath();
-    context.roundRect(4, 4, 120, 56, 12);
+    context.roundRect(8, 8, 240, 112, 24);
     context.fill();
   } else {
-    context.fillRect(4, 4, 120, 56);
+    context.fillRect(8, 8, 240, 112);
   }
   context.fillStyle = '#111111';
-  context.font = 'bold 36px Arial, sans-serif';
+  context.font = 'bold 64px Arial, sans-serif';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(text, 64, 34);
+  context.fillText(text, 128, 68);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   material.map = texture;

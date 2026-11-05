@@ -1,18 +1,26 @@
 import { useState } from 'react';
-import { PIECE_CATEGORIES, holeCountLabel, isPieceReady, piecesInCategory } from '../app/library';
+import {
+  PIECE_CATEGORIES,
+  hasModelFile,
+  holeCountLabel,
+  isPieceReady,
+  piecesInCategory,
+} from '../app/library';
 import type { LibraryPiece, PieceCategory } from '../app/library';
 import ImportPieces from './ImportPieces';
 
 /**
- * The right-hand Shapes panel: the 17 spec pieces in three collapsible
- * sections — Girders, Braces, Plates — plus any pieces imported in
- * this session. The panel itself is collapsible (from Milestone 1).
+ * The right-hand Shapes panel: only the pieces that have a model
+ * file — right now the three temporary stand-ins (1x6 Girder, 2x2
+ * Panel, L-Brace) plus any pieces imported in this session — in three
+ * collapsible sections (Girders, Braces, Plates). The other 14 spec
+ * pieces are hidden from the UI until their STLs arrive; the 17-piece
+ * spec data is untouched, so a piece reappears as soon as it has a
+ * file. The panel itself is collapsible (from Milestone 1).
  *
  * Each entry shows a colour swatch (never a fake thumbnail), its name,
  * its hole count ("holes: ?" when the count is not established), and
- * its status. Spec pieces are marked "STL needed" and cannot be placed
- * — there is no geometry for them yet, and no look-alike is
- * substituted. Imported pieces are marked "Ready". There is no Basic
+ * its status. Imported pieces are marked "Ready". There is no Basic
  * Shapes section and no way to delete a piece from the library.
  */
 
@@ -35,16 +43,22 @@ function sizeLabel(piece: LibraryPiece): string {
 
 function PieceEntry({ piece, onPlace }: { piece: LibraryPiece; onPlace: (id: string) => void }) {
   const ready = isPieceReady(piece);
+  // A stand-in whose file is still loading is not ready yet, but it
+  // is not "STL needed" either — its file is already bundled.
   const status = ready
     ? piece.standIn !== undefined
       ? 'Temporary stand-in'
       : 'Ready'
-    : 'STL needed';
+    : piece.standIn !== undefined
+      ? 'Loading…'
+      : 'STL needed';
   const statusClass = ready
     ? piece.standIn !== undefined
       ? 'library-status-standin'
       : 'library-status-ready'
-    : 'library-status-needed';
+    : piece.standIn !== undefined
+      ? 'library-status-standin'
+      : 'library-status-needed';
   const title = ready
     ? piece.standIn !== undefined
       ? `Temporary stand-in STL — real piece STL still needed.${sizeLabel(piece)}`
@@ -126,7 +140,12 @@ export default function ShapesPanel({
           <>
             <ImportPieces onImport={onImport} importing={importing} error={importError} />
             {PIECE_CATEGORIES.map((category) => {
-              const sectionPieces = piecesInCategory(pieces, category.id);
+              // Only pieces with a model file are listed; a section
+              // with none is hidden rather than shown empty.
+              const sectionPieces = piecesInCategory(pieces, category.id).filter(hasModelFile);
+              if (sectionPieces.length === 0) {
+                return null;
+              }
               const sectionCollapsed = collapsedSections.has(category.id);
               return (
                 <section className="library-section" key={category.id} aria-label={category.label}>
@@ -161,9 +180,9 @@ export default function ShapesPanel({
               );
             })}
             <p className="panel-note">
-              The 17 pieces above need their STL files before they can be placed. Three of them have
-              a temporary stand-in STL for now (1x6 Girder, 2x2 Panel, L-Brace) — the real piece
-              STLs are still needed.
+              Only pieces with an STL file are shown. Three have a temporary stand-in for now (1x6
+              Girder, 2x2 Panel, L-Brace) — the other 14 spec pieces are hidden until their real
+              STLs arrive. Import a piece above to add it to the list.
             </p>
           </>
         )}

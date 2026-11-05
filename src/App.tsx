@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AngleBadge from './components/AngleBadge.tsx';
 import Header from './components/Header.tsx';
 import MoveRotatePanel from './components/MoveRotatePanel.tsx';
 import type { SingleSelection } from './components/MoveRotatePanel.tsx';
@@ -66,11 +67,20 @@ export default function App() {
   const [rotateStep, setRotateStep] = useState(45);
   // Milestone 4: the rotation handle the pointer currently hovers.
   const [handleHover, setHandleHover] = useState<RotationAxis | null>(null);
+  // Milestone 4: the axis (and piece) of the last handle drag, for the
+  // big live angle badge. Set when a drag starts; the badge then shows
+  // the piece's live angle while dragging and lingers after release
+  // (click-to-type needs a badge that is still there), hiding when
+  // the piece is deselected or the mode leaves Rotate.
+  const [badgeAxis, setBadgeAxis] = useState<{
+    placedId: string;
+    axis: RotationAxis;
+  } | null>(null);
   const placedCounter = useRef(0);
 
   // Load the bundled temporary stand-in STLs (see
   // public/library/LIBRARY_SOURCES.md). A stand-in that fails to load
-  // simply leaves its piece marked "STL needed".
+  // simply leaves its piece unplaceable.
   useEffect(() => {
     let cancelled = false;
     for (const piece of standInPieces()) {
@@ -92,7 +102,7 @@ export default function App() {
           );
         })
         .catch(() => {
-          // Stand-in failed to load; the piece stays "STL needed".
+          // Stand-in failed to load; the piece stays unplaceable.
         });
     }
     return () => {
@@ -189,6 +199,7 @@ export default function App() {
       },
       onDeselectAll(): void {
         setSelectedIds([]);
+        setBadgeAxis(null);
       },
       onDragPiece(placedId: string, x: number, z: number): void {
         setPlaced((previous) =>
@@ -214,6 +225,14 @@ export default function App() {
       onBeginRotate(): void {
         // Grabbing a handle switches the selection to Rotate mode.
         setSelectionMode('rotate');
+      },
+      onHandleDrag(placedId: string | null, axis: RotationAxis | null): void {
+        // The badge appears on drag start and lingers after release so
+        // it can be clicked to type an angle — the null on release
+        // needs no state change here.
+        if (placedId !== null && axis !== null) {
+          setBadgeAxis({ placedId, axis });
+        }
       },
       onHandleHover(axis: RotationAxis | null): void {
         setHandleHover(axis);
@@ -295,6 +314,27 @@ export default function App() {
     setPlaced((previous) => resetPiecesRotation(previous, selectedIds));
   }, [selectedIds]);
 
+  const rotate90Selected = useCallback(
+    (axis: RotationAxis) => {
+      setPlaced((previous) => addPiecesRotation(previous, selectedIds, axis, 90));
+    },
+    [selectedIds],
+  );
+
+  const setAngleForPiece = useCallback((placedId: string, axis: RotationAxis, degrees: number) => {
+    // The badge types an angle for the dragged piece only — unlike
+    // the panel's typed fields, which apply to the whole selection.
+    setPlaced((previous) => setPiecesRotation(previous, [placedId], axis, degrees));
+  }, []);
+
+  const handleSetMode = useCallback((mode: SelectionMode) => {
+    setSelectionMode(mode);
+    // Leaving Rotate hides the angle badge.
+    if (mode !== 'rotate') {
+      setBadgeAxis(null);
+    }
+  }, []);
+
   const selectedPieces: readonly { id: string; name: string }[] = selectedIds.flatMap((id) => {
     const piece = placed.find((entry) => entry.id === id);
     const libraryPiece =
@@ -348,14 +388,33 @@ export default function App() {
             mode={selectionMode}
             step={rotateStep}
             hoverAxis={handleHover}
-            onSetMode={setSelectionMode}
+            onSetMode={handleSetMode}
             onSetStep={setRotateStep}
             onMove={moveSelected}
             onRotateStep={rotateStepSelected}
+            onRotate90={rotate90Selected}
             onSetAngle={setAngleSelected}
             onFlip={flipSelected}
             onResetOrientation={resetOrientationSelected}
           />
+          {badgeAxis !== null &&
+            selectionMode === 'rotate' &&
+            selectedIds.includes(badgeAxis.placedId) &&
+            (() => {
+              const piece = placed.find((entry) => entry.id === badgeAxis.placedId);
+              if (piece === undefined) {
+                return null;
+              }
+              return (
+                <AngleBadge
+                  axis={badgeAxis.axis}
+                  angle={piece.rotation[badgeAxis.axis]}
+                  onSetAngle={(axis, degrees) => {
+                    setAngleForPiece(badgeAxis.placedId, axis, degrees);
+                  }}
+                />
+              );
+            })()}
         </div>
         <ShapesPanel
           pieces={libraryPieces}

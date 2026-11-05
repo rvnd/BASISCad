@@ -37,6 +37,27 @@ describe('rotation updates', () => {
     expect(addRotation(base, 'x', 15)).toEqual({ x: 15, y: 0, z: 45 });
   });
 
+  it('adds exactly 90° to one axis only, wrapping past 180° — the panel 90° button', () => {
+    // From 45° it lands on 135°, from 135° it wraps to -135°.
+    expect(addRotation({ x: 45, y: 0, z: 0 }, 'x', 90)).toEqual({ x: 135, y: 0, z: 0 });
+    expect(addRotation({ x: 135, y: 0, z: 0 }, 'x', 90)).toEqual({ x: -135, y: 0, z: 0 });
+    expect(addRotation({ x: 0, y: 0, z: 0 }, 'y', 90)).toEqual({ x: 0, y: 90, z: 0 });
+  });
+
+  it('applies a typed angle from the badge exactly as the panel fields do', () => {
+    // The badge's commit path is parseAngleInput + setRotation — the
+    // same two functions the panel's typed fields use. Decimals and
+    // negatives are accepted, and -30 lands exactly on -30.
+    expect(setRotation(base, 'z', parseAngleInput('-30') ?? 0)).toEqual({ x: 0, y: 0, z: -30 });
+    expect(setRotation(base, 'x', parseAngleInput('45.5') ?? 0)).toEqual({
+      x: 45.5,
+      y: 0,
+      z: 45,
+    });
+    expect(setRotation(base, 'y', parseAngleInput('270') ?? 0)).toEqual({ x: 0, y: -90, z: 45 });
+    expect(parseAngleInput('abc')).toBeNull();
+  });
+
   it('sets an axis to an absolute angle', () => {
     // Typing -30 sets exactly -30, not 330.
     expect(setRotation(base, 'z', -30)).toEqual({ x: 0, y: 0, z: -30 });

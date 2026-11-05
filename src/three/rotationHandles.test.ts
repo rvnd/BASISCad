@@ -177,9 +177,16 @@ describe('protractor', () => {
     expect(group.getObjectByName('rotation-protractor-circle')).toBeDefined();
     expect(group.getObjectByName('rotation-protractor-ticks')).toBeDefined();
     const label = group.getObjectByName('rotation-protractor-label') as THREE.Sprite;
-    expect(label.userData.labelText).toBe('45°');
-    updateProtractorAngle(group, -30);
-    expect(label.userData.labelText).toBe('-30°');
+    // The readout names its axis, so a drag can never be mistaken for
+    // another axis — and it is large: twice as wide as tall, matching
+    // its 2:1 canvas, and bigger than the old 0.5 uniform scale.
+    expect(label.userData.labelText).toBe('X 45°');
+    expect(label.scale.x).toBeCloseTo(1.8);
+    expect(label.scale.y).toBeCloseTo(0.9);
+    updateProtractorAngle(group, 'x', -30);
+    expect(label.userData.labelText).toBe('X -30°');
+    updateProtractorAngle(group, 'z', 90);
+    expect(label.userData.labelText).toBe('Z 90°');
     hideProtractor(group);
     expect(group.visible).toBe(false);
   });
