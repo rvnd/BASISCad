@@ -160,6 +160,20 @@ export function createViewport(
   let moved = false;
 
   /**
+   * Set the pointer cursor on the canvas and its wrapper. The canvas
+   * alone is not enough: an overlaying wrapper can be the element the
+   * browser actually shows the cursor for, so a grab cursor set only
+   * on the canvas never appears (verified on the live site — hover
+   * highlighted the handle but the cursor stayed an arrow).
+   */
+  const setCursor = (value: string): void => {
+    renderer.domElement.style.cursor = value;
+    if (renderer.domElement.parentElement !== null) {
+      renderer.domElement.parentElement.style.cursor = value;
+    }
+  };
+
+  /**
    * Hover feedback for the rotation handles: highlight the handle
    * under the pointer, switch the cursor to a grab hand, and tell
    * React which axis is hovered so the panel can name it. Runs only
@@ -177,7 +191,7 @@ export function createViewport(
       designScene.setHandleHover(hovered);
       designCallbacks.onHandleHover(hovered);
     }
-    renderer.domElement.style.cursor = hovered === null ? '' : 'grab';
+    setCursor(hovered === null ? '' : 'grab');
   };
 
   const clearHandleHover = (): void => {
@@ -186,7 +200,7 @@ export function createViewport(
       designScene.setHandleHover(null);
       designCallbacks?.onHandleHover(null);
     }
-    renderer.domElement.style.cursor = '';
+    setCursor('');
   };
 
   const endPointerGesture = (event: PointerEvent): void => {
@@ -229,7 +243,7 @@ export function createViewport(
           radiusMm: handle.radiusMm,
         };
         controls.enabled = false;
-        renderer.domElement.style.cursor = 'grabbing';
+        setCursor('grabbing');
         designScene.setProtractor(handle.axis, rotation[handle.axis]);
         designCallbacks.onBeginRotate(handle.placedId);
         try {
@@ -357,6 +371,8 @@ export function createViewport(
   renderer.domElement.addEventListener('pointermove', onPointerMove);
   renderer.domElement.addEventListener('pointerup', onPointerUp);
   renderer.domElement.addEventListener('pointercancel', onPointerCancel);
+  // Leaving the canvas must clear a stuck grab cursor/highlight.
+  renderer.domElement.addEventListener('pointerleave', clearHandleHover);
 
   const resize = (): void => {
     const width = container.clientWidth;
@@ -448,6 +464,7 @@ export function createViewport(
       renderer.domElement.removeEventListener('pointermove', onPointerMove);
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
       renderer.domElement.removeEventListener('pointercancel', onPointerCancel);
+      renderer.domElement.removeEventListener('pointerleave', clearHandleHover);
       controls.dispose();
       designScene.dispose();
       scene.traverse(disposeObject);
