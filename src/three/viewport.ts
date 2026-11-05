@@ -3,10 +3,13 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { getCameraView } from './cameraViews';
 import type { CameraViewId } from './cameraViews';
 import { createDesignScene } from './designScene';
-import type { PlacedPiece } from '../app/design';
+import type { PlacedPiece, RotationDeg, SelectionMode } from '../app/design';
+import { normalizeAngleDeg } from '../app/rotation';
 import type { LibraryPiece } from '../app/library';
 import { createFramingCamera, createWorkplane } from './workplane';
 import { eventToNdc, pointerToWorkplane } from './pointer';
+import { RING_ANGLE_SIGNS, unwrapAngleDelta } from './rotationRings';
+import type { RotationAxis } from './rotationRings';
 
 /**
  * Imperative Three.js viewport, kept deliberately separate from React.
@@ -37,6 +40,8 @@ export interface ViewportHandle {
     library: readonly LibraryPiece[],
     selectedIds: readonly string[],
   ): void;
+  /** What dragging a selected piece does (Milestone 4). */
+  setSelectionMode(mode: SelectionMode): void;
 }
 
 /**
@@ -50,6 +55,10 @@ export interface ViewportDesignCallbacks {
   onSelectPiece(placedId: string, additive: boolean): void;
   onDeselectAll(): void;
   onDragPiece(placedId: string, x: number, z: number): void;
+  /** A ring drag or rotate-mode drag set one axis to an absolute angle. */
+  onRotatePiece(placedId: string, axis: RotationAxis, angleDeg: number): void;
+  /** Grabbing a rotation ring switches the selection to Rotate mode. */
+  onBeginRotate(placedId: string): void;
 }
 
 /** Zoom step: each click moves the camera 20% closer / farther. */
@@ -110,18 +119,39 @@ export function createViewport(
   // workplane. A pointer-down on empty space leaves orbit alone; a
   // release without moving deselects everything. Clicks are told apart
   // from drags by a few pixels of movement.
+  //
+  // Milestone 4 adds two rotate gestures. Grabbing a rotation ring
+  // rotates the piece about that ring's axis, following the pointer
+  // around the ring; in Rotate mode, dragging the piece itself turns
+  // it around the vertical (Y) axis. Both report absolute angles, so
+  // the App stays the single source of truth for rotation.
   const CLICK_SLOP_PX = 4;
+  /** Degrees of Y rotation per pixel of horizontal drag in Rotate mode. */
+  const ROTATE_DRAG_DEGREES_PER_PX = 0.5;
+  let selectionMode: SelectionMode = 'move';
   let downAt: { x: number; y: number } | null = null;
-  let drag: { placedId: string; grabOffset: { x: number; z: number } } | null = null;
+  type Gesture =
+    | { kind: 'move'; placedId: string; grabOffset: { x: number; z: number } }
+    | {
+        kind: 'ring';
+        placedId: string;
+        axis: RotationAxis;
+        startAngleDeg: number;
+        startRotationDeg: number;
+        lastAngleDeg: number;
+        totalDeltaDeg: number;
+      }
+    | { kind: 'rotate'; placedId: string; startClientX: number; startRotationDeg: number };
+  let gesture: Gesture | null = null;
   let moved = false;
 
   const endPointerGesture = (event: PointerEvent): void => {
-    if (drag !== null) {
+    if (gesture !== null) {
       controls.enabled = true;
-      if (!moved && designCallbacks !== undefined) {
-        designCallbacks.onSelectPiece(drag.placedId, event.shiftKey);
+      if (!moved && designCallbacks !== undefined && gesture.kind !== 'ring') {
+        designCallbacks.onSelectPiece(gesture.placedId, event.shiftKey);
       }
-      drag = null;
+      gesture = null;
     } else if (downAt !== null && !moved && designCallbacks !== undefined) {
       designCallbacks.onDeselectAll();
     }
@@ -132,13 +162,53 @@ export function createViewport(
   const onPointerDown = (event: PointerEvent): void => {
     downAt = { x: event.clientX, y: event.clientY };
     moved = false;
-    drag = null;
+    gesture = null;
     if (designCallbacks === undefined) {
       return;
     }
     const ndc = eventToNdc(event, renderer.domElement);
+    // Rotation rings first: grabbing one switches to Rotate mode.
+    const ring = designScene.ringHit(ndc.x, ndc.y, camera);
+    if (ring !== null) {
+      const rotation: RotationDeg | null = designScene.rotationOf(ring.placedId);
+      if (rotation !== null) {
+        gesture = {
+          kind: 'ring',
+          placedId: ring.placedId,
+          axis: ring.axis,
+          startAngleDeg: ring.angleDeg,
+          startRotationDeg: rotation[ring.axis],
+          lastAngleDeg: ring.angleDeg,
+          totalDeltaDeg: 0,
+        };
+        controls.enabled = false;
+        designCallbacks.onBeginRotate(ring.placedId);
+        try {
+          renderer.domElement.setPointerCapture(event.pointerId);
+        } catch {
+          // Pointer capture is best-effort; the gesture still works.
+        }
+      }
+      return;
+    }
     const hit = designScene.pick(ndc.x, ndc.y, camera);
     if (hit === null) {
+      return;
+    }
+    if (selectionMode === 'rotate') {
+      const rotation: RotationDeg | null = designScene.rotationOf(hit);
+      gesture = {
+        kind: 'rotate',
+        placedId: hit,
+        startClientX: event.clientX,
+        startRotationDeg: rotation === null ? 0 : rotation.y,
+      };
+      controls.enabled = false;
+      try {
+        renderer.domElement.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture is best-effort; the gesture still works.
+      }
       return;
     }
     const point = pointerToWorkplane(ndc.x, ndc.y, camera);
@@ -146,7 +216,8 @@ export function createViewport(
     if (point === null || centre === null) {
       return;
     }
-    drag = {
+    gesture = {
+      kind: 'move',
       placedId: hit,
       grabOffset: { x: centre.x - point.x, z: centre.z - point.z },
     };
@@ -165,7 +236,35 @@ export function createViewport(
         moved = true;
       }
     }
-    if (drag === null || !moved || designCallbacks === undefined) {
+    if (gesture === null || !moved || designCallbacks === undefined) {
+      return;
+    }
+    if (gesture.kind === 'ring') {
+      const ndc = eventToNdc(event, renderer.domElement);
+      const angle = designScene.ringAngle(gesture.axis, ndc.x, ndc.y, camera);
+      if (angle === null) {
+        return;
+      }
+      gesture.totalDeltaDeg += unwrapAngleDelta(gesture.lastAngleDeg, angle);
+      gesture.lastAngleDeg = angle;
+      designCallbacks.onRotatePiece(
+        gesture.placedId,
+        gesture.axis,
+        normalizeAngleDeg(
+          gesture.startRotationDeg + gesture.totalDeltaDeg * RING_ANGLE_SIGNS[gesture.axis],
+        ),
+      );
+      return;
+    }
+    if (gesture.kind === 'rotate') {
+      designCallbacks.onRotatePiece(
+        gesture.placedId,
+        'y',
+        normalizeAngleDeg(
+          gesture.startRotationDeg +
+            (event.clientX - gesture.startClientX) * ROTATE_DRAG_DEGREES_PER_PX,
+        ),
+      );
       return;
     }
     const ndc = eventToNdc(event, renderer.domElement);
@@ -174,9 +273,9 @@ export function createViewport(
       return;
     }
     designCallbacks.onDragPiece(
-      drag.placedId,
-      point.x + drag.grabOffset.x,
-      point.z + drag.grabOffset.z,
+      gesture.placedId,
+      point.x + gesture.grabOffset.x,
+      point.z + gesture.grabOffset.z,
     );
   };
 
@@ -186,10 +285,10 @@ export function createViewport(
 
   const onPointerCancel = (): void => {
     // A cancelled gesture never counts as a click.
-    if (drag !== null) {
+    if (gesture !== null) {
       controls.enabled = true;
     }
-    drag = null;
+    gesture = null;
     downAt = null;
     moved = false;
   };
@@ -272,6 +371,9 @@ export function createViewport(
       selectedIds: readonly string[],
     ): void {
       designScene.sync(placed, library, selectedIds);
+    },
+    setSelectionMode(mode: SelectionMode): void {
+      selectionMode = mode;
     },
     dispose(): void {
       disposed = true;

@@ -23,7 +23,7 @@ interface ViewControlsProps {
   disabled: boolean;
   /** Selected placed pieces, in selection order. */
   selectedPieces: readonly { id: string; name: string }[];
-  /** What the selection is doing — 'move' only, until Milestone 4 adds rotate. */
+  /** What the selection is doing — Move drags pieces, Rotate turns them. */
   selectionMode: SelectionMode;
   /** Remove the selected pieces from the design (not from the library). */
   onRemoveSelected: () => void;
@@ -86,8 +86,9 @@ export default function ViewControls({
               ))}
             </ul>
             <p className="panel-note">
-              Mode: {selectionMode === 'move' ? 'Move' : selectionMode} — drag the piece to move it.
-              Its rotation is kept.
+              {selectionMode === 'move'
+                ? 'Mode: Move — drag the piece to move it. Its rotation is kept.'
+                : 'Mode: Rotate — drag the piece to turn it, or drag a coloured ring around it.'}
             </p>
           </>
         )}

@@ -1,10 +1,15 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
+  addPiecesRotation,
   clampPosition,
   createPlacedPiece,
   defaultPlacement,
+  flipPiecesRotation,
   removePlaced,
+  resetPiecesRotation,
+  setPiecesPosition,
+  setPiecesRotation,
   toggleSelection,
 } from '../app/design';
 
@@ -24,12 +29,21 @@ describe('design', () => {
   });
 
   it('clamps a position to the workplane, keeping the footprint inside', () => {
-    expect(clampPosition(9999, -9999, small)).toEqual({ x: 475, z: -494 });
-    expect(clampPosition(0, 0, small)).toEqual({ x: 0, z: 0 });
+    expect(clampPosition(9999, 0, -9999, small)).toEqual({ x: 475, y: 0, z: -494 });
+    expect(clampPosition(0, 0, 0, small)).toEqual({ x: 0, y: 0, z: 0 });
+  });
+
+  it('never lets a piece sink below the workplane', () => {
+    expect(clampPosition(0, -50, 0, small)).toEqual({ x: 0, y: 0, z: 0 });
+    expect(clampPosition(0, 25, 0, small)).toEqual({ x: 0, y: 25, z: 0 });
   });
 
   it('centres a piece bigger than the workplane on that axis', () => {
-    expect(clampPosition(100, 100, { x: 2000, y: 3, z: 10 })).toEqual({ x: 0, z: 100 });
+    expect(clampPosition(100, 0, 100, { x: 2000, y: 3, z: 10 })).toEqual({
+      x: 0,
+      y: 0,
+      z: 100,
+    });
   });
 
   it('creates a placed piece unrotated at its default spot', () => {
@@ -52,6 +66,42 @@ describe('design', () => {
     ];
     expect(removePlaced(placed, ['p1']).map((piece) => piece.id)).toEqual(['p2']);
     expect(removePlaced(placed, [])).toHaveLength(2);
+  });
+
+  it('moves selected pieces to a typed position, clamped to the workplane', () => {
+    const placed = [
+      createPlacedPiece('p1', 'girder-1x4', 0, small),
+      createPlacedPiece('p2', 'girder-1x6', 1, small),
+    ];
+    const sizes = new Map([
+      ['girder-1x4', small],
+      ['girder-1x6', small],
+    ]);
+    const moved = setPiecesPosition(placed, ['p1'], { x: 9999, y: -5, z: 100 }, sizes);
+    expect(moved[0]?.position).toEqual({ x: 475, y: 0, z: 100 });
+    expect(moved[1]).toBe(placed[1]);
+  });
+
+  it('rotates selected pieces together and keeps the rest', () => {
+    const placed = [
+      createPlacedPiece('p1', 'girder-1x4', 0, small),
+      createPlacedPiece('p2', 'girder-1x6', 1, small),
+    ];
+    // A 45° step on Z, then a typed -30° on Z, then a flip: -30 + 180 = 150.
+    const stepped = addPiecesRotation(placed, ['p1', 'p2'], 'z', 45);
+    expect(stepped[0]?.rotation).toEqual({ x: 0, y: 0, z: 45 });
+    const typed = setPiecesRotation(stepped, ['p1'], 'z', -30);
+    expect(typed[0]?.rotation).toEqual({ x: 0, y: 0, z: -30 });
+    expect(typed[1]?.rotation).toEqual({ x: 0, y: 0, z: 45 });
+    const flipped = flipPiecesRotation(typed, ['p1'], 'z');
+    expect(flipped[0]?.rotation).toEqual({ x: 0, y: 0, z: 150 });
+    const reset = resetPiecesRotation(flipped, ['p1', 'p2']);
+    expect(reset.map((piece) => piece.rotation)).toEqual([
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+    ]);
+    // Nothing selected means nothing changes.
+    expect(addPiecesRotation(placed, [], 'z', 45)).toBe(placed);
   });
 });
 

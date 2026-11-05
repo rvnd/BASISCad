@@ -1,8 +1,16 @@
 import * as THREE from 'three';
-import type { PlacedPiece } from '../app/design';
+import type { PlacedPiece, RotationDeg } from '../app/design';
 import type { LibraryPiece } from '../app/library';
 import { getGeometry } from './libraryGeometry';
 import { createPieceMesh, disposePieceMesh } from './pieces';
+import {
+  createRotationRings,
+  disposeRotationRings,
+  ringAngleDeg,
+  ringHit,
+  updateRotationRings,
+} from './rotationRings';
+import type { RotationAxis } from './rotationRings';
 
 /**
  * Keeps the Three.js scene in sync with the design data in App state.
@@ -30,6 +38,16 @@ export interface DesignScene {
   pick(ndcX: number, ndcY: number, camera: THREE.Camera): string | null;
   /** The centre of a placed piece on the workplane, or null when it is not in the scene. */
   positionOf(placedId: string): { x: number; z: number } | null;
+  /** A placed piece's stored rotation, or null when it is not in the scene. */
+  rotationOf(placedId: string): RotationDeg | null;
+  /** The ring a pointer ray grabs (single selection only), or null. */
+  ringHit(
+    ndcX: number,
+    ndcY: number,
+    camera: THREE.Camera,
+  ): { placedId: string; axis: RotationAxis; angleDeg: number } | null;
+  /** The pointer's angle on one ring, or null when the ray misses the ring's plane. */
+  ringAngle(axis: RotationAxis, ndcX: number, ndcY: number, camera: THREE.Camera): number | null;
   dispose(): void;
 }
 
@@ -54,12 +72,89 @@ function createSelectionBox(geometry: THREE.BufferGeometry): THREE.LineSegments 
   return lines;
 }
 
+/**
+ * How far a piece must be lifted so that, after its rotation, no
+ * part of it sits below the workplane. Geometry is normalised with
+ * its base on y = 0, and the group rotates about its base centre —
+ * so a 180° flip about X or Z would swing the part underneath the
+ * plane without this lift. Rotation about the vertical (Y) axis
+ * never needs lifting.
+ */
+function rotationLift(geometry: THREE.BufferGeometry, rotation: RotationDeg): number {
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  if (box === null) {
+    return 0;
+  }
+  const matrix = new THREE.Matrix4().makeRotationFromEuler(
+    new THREE.Euler(
+      THREE.MathUtils.degToRad(rotation.x),
+      THREE.MathUtils.degToRad(rotation.y),
+      THREE.MathUtils.degToRad(rotation.z),
+    ),
+  );
+  let minY = Number.POSITIVE_INFINITY;
+  for (const x of [box.min.x, box.max.x]) {
+    for (const y of [box.min.y, box.max.y]) {
+      for (const z of [box.min.z, box.max.z]) {
+        minY = Math.min(minY, new THREE.Vector3(x, y, z).applyMatrix4(matrix).y);
+      }
+    }
+  }
+  return Math.max(0, -minY);
+}
+
+/** Centre of a piece's rotated bounding box, in the piece's local frame. */
+function rotatedBoxCentre(geometry: THREE.BufferGeometry, rotation: RotationDeg): THREE.Vector3 {
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  if (box === null) {
+    return new THREE.Vector3();
+  }
+  const matrix = new THREE.Matrix4().makeRotationFromEuler(
+    new THREE.Euler(
+      THREE.MathUtils.degToRad(rotation.x),
+      THREE.MathUtils.degToRad(rotation.y),
+      THREE.MathUtils.degToRad(rotation.z),
+    ),
+  );
+  const min = new THREE.Vector3(
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+  );
+  const max = new THREE.Vector3(
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+  );
+  for (const x of [box.min.x, box.max.x]) {
+    for (const y of [box.min.y, box.max.y]) {
+      for (const z of [box.min.z, box.max.z]) {
+        const corner = new THREE.Vector3(x, y, z).applyMatrix4(matrix);
+        min.min(corner);
+        max.max(corner);
+      }
+    }
+  }
+  return min.add(max).multiplyScalar(0.5);
+}
+
 export function createDesignScene(scene: THREE.Scene): DesignScene {
   const group = new THREE.Group();
   group.name = 'design';
   scene.add(group);
   const byId = new Map<string, THREE.Group>();
   const raycaster = new THREE.Raycaster();
+  // Rotation rings, shown around the single selected piece. They live
+  // directly on the scene (not in the design group, whose children
+  // are one group per placed piece) — the design group has no
+  // transform, so the rings sit at the same world position either way.
+  const rings = createRotationRings();
+  scene.add(rings);
+  let ringCentre: THREE.Vector3 | null = null;
+  let ringRadius = 0;
+  let ringPlacedId: string | null = null;
 
   return {
     sync(
@@ -87,7 +182,11 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
           group.add(object);
           byId.set(placedPiece.id, object);
         }
-        object.position.set(placedPiece.position.x, 0, placedPiece.position.z);
+        object.position.set(
+          placedPiece.position.x,
+          placedPiece.position.y + rotationLift(geometry, placedPiece.rotation),
+          placedPiece.position.z,
+        );
         object.rotation.set(
           THREE.MathUtils.degToRad(placedPiece.rotation.x),
           THREE.MathUtils.degToRad(placedPiece.rotation.y),
@@ -105,6 +204,37 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
           byId.delete(id);
         }
       }
+      // Rotation rings around the single selected piece, if any.
+      ringCentre = null;
+      ringRadius = 0;
+      ringPlacedId = null;
+      if (selectedIds.length === 1) {
+        const selectedId = selectedIds[0];
+        const selectedPlaced = placed.find((piece) => piece.id === selectedId);
+        const selectedObject = selectedId === undefined ? undefined : byId.get(selectedId);
+        const selectedLibrary =
+          selectedPlaced === undefined ? undefined : libraryById.get(selectedPlaced.libraryId);
+        const selectedGeometry =
+          selectedLibrary?.geometryId === undefined || selectedLibrary.geometryId === null
+            ? undefined
+            : getGeometry(selectedLibrary.geometryId);
+        if (
+          selectedPlaced !== undefined &&
+          selectedObject !== undefined &&
+          selectedGeometry !== undefined
+        ) {
+          const centre = rotatedBoxCentre(selectedGeometry, selectedPlaced.rotation);
+          centre.x += selectedPlaced.position.x;
+          centre.y += selectedObject.position.y;
+          centre.z += selectedPlaced.position.z;
+          selectedGeometry.computeBoundingSphere();
+          const sphere = selectedGeometry.boundingSphere;
+          ringCentre = centre;
+          ringRadius = (sphere?.radius ?? 0) + 14;
+          ringPlacedId = selectedId ?? null;
+        }
+      }
+      updateRotationRings(rings, ringCentre, ringRadius);
     },
 
     pick(ndcX: number, ndcY: number, camera: THREE.Camera): string | null {
@@ -131,12 +261,62 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       return { x: object.position.x, z: object.position.z };
     },
 
+    rotationOf(placedId: string): RotationDeg | null {
+      const object = byId.get(placedId);
+      if (object === undefined) {
+        return null;
+      }
+      return {
+        x: THREE.MathUtils.radToDeg(object.rotation.x),
+        y: THREE.MathUtils.radToDeg(object.rotation.y),
+        z: THREE.MathUtils.radToDeg(object.rotation.z),
+      };
+    },
+
+    ringHit(
+      ndcX: number,
+      ndcY: number,
+      camera: THREE.Camera,
+    ): { placedId: string; axis: RotationAxis; angleDeg: number } | null {
+      if (ringCentre === null || ringPlacedId === null) {
+        return null;
+      }
+      raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+      const hit = ringHit(ringCentre, ringRadius, raycaster.ray);
+      if (hit === null) {
+        return null;
+      }
+      return { placedId: ringPlacedId, axis: hit.axis, angleDeg: hit.angleDeg };
+    },
+
+    ringAngle(axis: RotationAxis, ndcX: number, ndcY: number, camera: THREE.Camera): number | null {
+      if (ringCentre === null) {
+        return null;
+      }
+      raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
+        axis === 'x'
+          ? new THREE.Vector3(1, 0, 0)
+          : axis === 'y'
+            ? new THREE.Vector3(0, 1, 0)
+            : new THREE.Vector3(0, 0, 1),
+        ringCentre,
+      );
+      const point = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(plane, point) === null) {
+        return null;
+      }
+      return ringAngleDeg(axis, ringCentre, point);
+    },
+
     dispose(): void {
       for (const object of byId.values()) {
         group.remove(object);
         disposePieceMesh(object);
       }
       byId.clear();
+      disposeRotationRings(rings);
+      scene.remove(rings);
       scene.remove(group);
     },
   };
