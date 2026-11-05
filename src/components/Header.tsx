@@ -82,7 +82,7 @@ export default function Header() {
           <span className="brand-cad">cad</span>
         </span>
       </div>
-      <span className="header-status">Milestone 1 · empty workplane</span>
+      <span className="header-status">Milestone 2 · piece library</span>
       <div className="header-menu" ref={menuRef}>
         <button
           type="button"

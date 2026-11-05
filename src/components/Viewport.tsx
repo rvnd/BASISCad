@@ -8,7 +8,6 @@ import type { ViewportHandle } from '../three/viewport';
  * The overlay note marks this as the empty placeholder from Milestone 0
  * — the workplane grid is live (orbit / zoom work), but there are no
  * pieces yet. It is removed when the piece library lands in Milestone 2.
- *
  * `onReady` hands the imperative viewport handle up to the App so the
  * view controls can call it; React never holds Three.js objects itself.
  */
@@ -35,7 +34,8 @@ export default function Viewport({
   return (
     <div className="viewport" ref={containerRef} role="region" aria-label="3D workplane">
       <p className="viewport-note">
-        Workplane · 1,000 × 1,000 mm — drag to orbit, scroll to zoom. Pieces arrive in Milestone 2.
+        Workplane · 1,000 × 1,000 mm — drag to orbit, scroll to zoom. Import a piece in the Shapes
+        panel to place it (Milestone 3).
       </p>
     </div>
   );

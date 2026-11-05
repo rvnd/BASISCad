@@ -56,6 +56,14 @@ export function createViewport(container: HTMLElement): ViewportHandle {
   scene.background = new THREE.Color(0xffffff);
   scene.add(createWorkplane());
 
+  // Lights for the standard-material pieces (Milestone 2 onwards).
+  // The workplane itself uses basic materials and is unaffected.
+  const ambient = new THREE.AmbientLight(0xffffff, 0.9);
+  scene.add(ambient);
+  const directional = new THREE.DirectionalLight(0xffffff, 1.2);
+  directional.position.set(400, 800, 500);
+  scene.add(directional);
+
   const camera = createFramingCamera(1);
 
   const controls = new OrbitControls(camera, renderer.domElement);
