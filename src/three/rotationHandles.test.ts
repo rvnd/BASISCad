@@ -89,8 +89,21 @@ describe('createRotationHandles', () => {
       expect(label).toBeInstanceOf(THREE.Sprite);
       // The label sits just outside the arc, past the knob.
       expect(label?.position.length()).toBeGreaterThan(1);
+      // The arrowhead is clearly wider than the thin arc tube, so it
+      // reads as an arrow first and a line second.
+      const arcRadius = (arc as THREE.Mesh).geometry as THREE.TubeGeometry;
+      const arrowGeometry = (arrow as THREE.Mesh).geometry as THREE.ConeGeometry;
+      expect(arrowGeometry.parameters.radius).toBeGreaterThan(arcRadius.parameters.radius * 3);
+      // An invisible, fatter hit tube along the same arc keeps the
+      // thin line as easy to grab as the old thick one.
+      const hit = group.getObjectByName(`rotation-handle-hit-${axis}`);
+      expect(hit).toBeDefined();
+      expect(hit?.userData.handleAxis).toBe(axis);
+      const hitMaterial = (hit as THREE.Mesh).material as THREE.MeshBasicMaterial;
+      expect(hitMaterial.transparent).toBe(true);
+      expect(hitMaterial.opacity).toBe(0);
       // Every part of the handle carries its axis for picking.
-      for (const part of [arc, arrow, knob, label]) {
+      for (const part of [arc, arrow, knob, label, hit]) {
         expect(part?.userData.handleAxis).toBe(axis);
       }
     }
