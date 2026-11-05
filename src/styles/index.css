@@ -141,6 +141,7 @@ body {
 
 .library-entry {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 6px 4px;
@@ -150,6 +151,45 @@ body {
 
 .library-entry:last-child {
   border-bottom: none;
+}
+
+.library-place {
+  margin-left: auto;
+  padding: 3px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-black);
+  background: var(--brand-white);
+  border: 1px solid #999999;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.library-place:hover:not(:disabled) {
+  border-color: var(--brand-red);
+  color: var(--brand-red);
+}
+
+.library-place:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Selection readout and trash can (Milestone 3), bottom of the left column. */
+.selection-list {
+  margin: 0 0 8px;
+  padding: 0 0 0 18px;
+  font-size: 13px;
+}
+
+.trash-button {
+  margin-top: 4px;
+}
+
+.trash-button:not(:disabled) {
+  border-color: var(--brand-red);
+  color: var(--brand-red);
 }
 
 .library-swatch {
