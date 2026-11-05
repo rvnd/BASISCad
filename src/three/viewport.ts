@@ -59,12 +59,30 @@ export interface ViewportDesignCallbacks {
   onRotatePiece(placedId: string, axis: RotationAxis, angleDeg: number): void;
   /** Grabbing a rotation handle switches the selection to Rotate mode. */
   onBeginRotate(placedId: string): void;
+  /**
+   * A rotation-handle drag started (which piece, which axis) or ended
+   * (both null). The App uses it for the big live angle badge, which
+   * shows the dragged axis and its live angle.
+   */
+  onHandleDrag(placedId: string | null, axis: RotationAxis | null): void;
   /** The pointer hovers a rotation handle (Rotate mode only), or none. */
   onHandleHover(axis: RotationAxis | null): void;
 }
 
 /** Zoom step: each click moves the camera 20% closer / farther. */
 const ZOOM_FACTOR = 0.8;
+
+/**
+ * Which axis a gesture drags about, for the live angle badge. Only a
+ * handle gesture drags about an axis — its own axis. Every other
+ * gesture drags about no axis, so the badge hides when the drag ends.
+ */
+export function dragAxisForGesture(
+  gestureKind: 'handle' | 'rotate' | 'move' | null,
+  axis: RotationAxis | null,
+): RotationAxis | null {
+  return gestureKind === 'handle' ? axis : null;
+}
 
 function disposeObject(object: THREE.Object3D): void {
   if (object instanceof THREE.Mesh) {
@@ -209,6 +227,9 @@ export function createViewport(
       if (!moved && designCallbacks !== undefined && gesture.kind !== 'handle') {
         designCallbacks.onSelectPiece(gesture.placedId, event.shiftKey);
       }
+      if (gesture.kind === 'handle' && designCallbacks !== undefined) {
+        designCallbacks.onHandleDrag(null, null);
+      }
       gesture = null;
     } else if (downAt !== null && !moved && designCallbacks !== undefined) {
       designCallbacks.onDeselectAll();
@@ -246,6 +267,7 @@ export function createViewport(
         setCursor('grabbing');
         designScene.setProtractor(handle.axis, rotation[handle.axis]);
         designCallbacks.onBeginRotate(handle.placedId);
+        designCallbacks.onHandleDrag(handle.placedId, dragAxisForGesture('handle', handle.axis));
         try {
           renderer.domElement.setPointerCapture(event.pointerId);
         } catch {
@@ -359,6 +381,9 @@ export function createViewport(
     // A cancelled gesture never counts as a click.
     if (gesture !== null) {
       controls.enabled = true;
+      if (gesture.kind === 'handle') {
+        designCallbacks?.onHandleDrag(null, null);
+      }
     }
     gesture = null;
     downAt = null;

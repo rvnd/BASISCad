@@ -103,6 +103,18 @@ export function isPieceReady(piece: LibraryPiece): boolean {
   return piece.geometryId !== null;
 }
 
+/**
+ * True when the piece has a model file available: a bundled
+ * stand-in STL, or geometry imported in this session. The Shapes
+ * panel lists only these pieces — a spec piece with no model file is
+ * hidden from the UI until its STL arrives, and shows up again as
+ * soon as it has one. The underlying 17-piece spec data stays
+ * intact (hole counts, colours, categories) either way.
+ */
+export function hasModelFile(piece: LibraryPiece): boolean {
+  return piece.standIn !== undefined || piece.geometryId !== null;
+}
+
 /** The 17 spec pieces, in the prototype's order, grouped by category. */
 export const SPEC_PIECES: readonly LibraryPiece[] = [
   // Girders (9): a 1xN girder has N holes.

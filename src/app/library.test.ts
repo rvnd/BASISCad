@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PIECE_CATEGORIES,
   SPEC_PIECES,
+  hasModelFile,
   holeCountLabel,
   isPieceReady,
   missingStlPieces,
@@ -78,6 +79,32 @@ describe('library', () => {
     const hBrace = SPEC_PIECES.find((piece) => piece.id === 'brace-h');
     expect(girder1x4 === undefined ? '' : holeCountLabel(girder1x4)).toBe('4 holes');
     expect(hBrace === undefined ? '' : holeCountLabel(hBrace)).toBe('holes: ?');
+  });
+
+  it('has a model file only for the three stand-ins — the Shapes panel lists just these', () => {
+    const withFile = SPEC_PIECES.filter(hasModelFile).map((piece) => piece.id);
+    expect(withFile).toEqual(['girder-1x6', 'brace-l', 'plate-2x2']);
+    // The other 14 spec pieces are hidden from the panel, not deleted:
+    // the 17-piece spec data above is unchanged.
+    expect(SPEC_PIECES).toHaveLength(17);
+    const girder1x4 = SPEC_PIECES.find((piece) => piece.id === 'girder-1x4');
+    expect(girder1x4 === undefined ? true : hasModelFile(girder1x4)).toBe(false);
+  });
+
+  it('counts an imported piece as having a model file once it has geometry', () => {
+    const imported = {
+      id: 'imported-1',
+      name: 'Imported piece',
+      category: 'girders' as const,
+      colourName: 'Grey',
+      colourHex: '#808080',
+      holeCount: null,
+      sizeMm: { x: 10, y: 2, z: 5 },
+      source: 'import' as const,
+      geometryId: null,
+    };
+    expect(hasModelFile(imported)).toBe(false);
+    expect(hasModelFile({ ...imported, geometryId: 'imported-1' })).toBe(true);
   });
 
   it('has no duplicate piece ids', () => {

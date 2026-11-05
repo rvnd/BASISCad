@@ -632,6 +632,7 @@ body {
 
 .rotate-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   margin-bottom: 8px;
@@ -647,6 +648,48 @@ body {
   font-size: 13px;
   font-weight: 700;
   border-radius: 50%;
+}
+
+/* Big live angle badge (Milestone 4) — overlaid at the bottom centre
+   of the viewport while a rotation handle is dragged, and lingering
+   after release so it can be clicked to type an exact angle. The
+   wrapper never takes pointer input; only the badge (or its input,
+   while editing) does, so the canvas stays draggable around it. */
+.angle-badge-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 6;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.angle-badge {
+  pointer-events: auto;
+  padding: 10px 20px;
+  font-family: inherit;
+  font-size: 28px;
+  font-weight: 700;
+  background: var(--brand-white);
+  border: 3px solid;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+  cursor: pointer;
+}
+
+.angle-badge-input {
+  pointer-events: auto;
+  width: 170px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  background: var(--brand-white);
+  border: 3px solid;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+  outline: none;
 }
 
 /* Coloured dot by a field label, matching that axis's ring. */

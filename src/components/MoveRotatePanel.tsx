@@ -125,6 +125,8 @@ interface MoveRotatePanelProps {
   onSetStep: (step: number) => void;
   onMove: (axis: Axis, value: number) => void;
   onRotateStep: (axis: Axis, direction: 1 | -1) => void;
+  /** One tap: rotate every selected piece +90° about this axis. */
+  onRotate90: (axis: Axis) => void;
   onSetAngle: (axis: Axis, degrees: number) => void;
   onFlip: (axis: Axis) => void;
   onResetOrientation: () => void;
@@ -140,6 +142,7 @@ export default function MoveRotatePanel({
   onSetStep,
   onMove,
   onRotateStep,
+  onRotate90,
   onSetAngle,
   onFlip,
   onResetOrientation,
@@ -287,6 +290,16 @@ export default function MoveRotatePanel({
             }}
           >
             +{step}°
+          </button>
+          <button
+            type="button"
+            className="control-button rotate-button"
+            aria-label={`Rotate ${axis.toUpperCase()} 90 degrees`}
+            onClick={() => {
+              onRotate90(axis);
+            }}
+          >
+            90°
           </button>
           <button
             type="button"

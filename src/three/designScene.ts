@@ -443,7 +443,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         showProtractor(protractor, axis, handleCentre, handleRadius, angleDeg);
         return;
       }
-      updateProtractorAngle(protractor, angleDeg);
+      updateProtractorAngle(protractor, axis, angleDeg);
     },
 
     dispose(): void {

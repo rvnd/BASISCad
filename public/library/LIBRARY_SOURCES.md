@@ -64,6 +64,18 @@ All three files come from the same source and share the same licence:
 - **Note:** the L-Brace hole count is not established in the spec, so
   the panel shows "holes: ?" for it, as for every other brace.
 
+## Pieces hidden from the Shapes panel
+
+Only pieces with a model file are listed in the Shapes panel (see
+`hasModelFile` in `src/app/library.ts`): the three stand-ins above,
+plus anything imported in the session. The other **14 spec pieces**
+(1x4, 1x5, 1x7, 1x8, 1x9, 1x10, 1x11, 1x12 Girders; 1x2, H-, V-,
+S-Braces; Team Plate, 2x3 Panel) have no STL yet, so they do not
+appear in the UI at all — no greyed-out rows, no "STL needed"
+entries. Their spec data (names, colours, known hole counts) is
+unchanged in the library, so a piece reappears in the panel as soon
+as its STL is supplied — no other change needed.
+
 ## Not used
 
 Two other files were downloaded and measured during the search and

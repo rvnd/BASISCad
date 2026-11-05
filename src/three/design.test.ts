@@ -103,6 +103,20 @@ describe('design', () => {
     // Nothing selected means nothing changes.
     expect(addPiecesRotation(placed, [], 'z', 45)).toBe(placed);
   });
+
+  it('adds 90° to one axis only, wrapping past 180° — the panel 90° button', () => {
+    const placed = [
+      createPlacedPiece('p1', 'girder-1x4', 0, small),
+      createPlacedPiece('p2', 'girder-1x6', 1, small),
+    ];
+    // From 45° to 135°, then wrapping to -135°, touching no other axis.
+    const once = addPiecesRotation(setPiecesRotation(placed, ['p1'], 'x', 45), ['p1'], 'x', 90);
+    expect(once[0]?.rotation).toEqual({ x: 135, y: 0, z: 0 });
+    expect(once[1]?.rotation).toEqual({ x: 0, y: 0, z: 0 });
+    const twice = addPiecesRotation(once, ['p1'], 'x', 90);
+    expect(twice[0]?.rotation).toEqual({ x: -135, y: 0, z: 0 });
+    expect(twice[1]?.rotation).toEqual({ x: 0, y: 0, z: 0 });
+  });
 });
 
 describe('pointerToWorkplane', () => {
