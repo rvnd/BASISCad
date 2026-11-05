@@ -4,12 +4,12 @@ import { getCameraView } from './cameraViews';
 import type { CameraViewId } from './cameraViews';
 import { createDesignScene } from './designScene';
 import type { PlacedPiece, RotationDeg, SelectionMode } from '../app/design';
-import { normalizeAngleDeg, snapDeltaDeg } from '../app/rotation';
+import { normalizeAngleDeg } from '../app/rotation';
 import type { LibraryPiece } from '../app/library';
 import { createFramingCamera, createWorkplane } from './workplane';
 import { eventToNdc, pointerToWorkplane } from './pointer';
-import { RING_ANGLE_SIGNS, unwrapAngleDelta } from './rotationRings';
-import type { RotationAxis } from './rotationRings';
+import { snapDragDeltaDeg, unwrapAngleDelta } from './rotationHandles';
+import type { RotationAxis } from './rotationHandles';
 
 /**
  * Imperative Three.js viewport, kept deliberately separate from React.
@@ -42,8 +42,6 @@ export interface ViewportHandle {
   ): void;
   /** What dragging a selected piece does (Milestone 4). */
   setSelectionMode(mode: SelectionMode): void;
-  /** The quick-rotate step ring drags snap to (Milestone 4 fix). */
-  setRotateStep(step: number): void;
 }
 
 /**
@@ -57,12 +55,12 @@ export interface ViewportDesignCallbacks {
   onSelectPiece(placedId: string, additive: boolean): void;
   onDeselectAll(): void;
   onDragPiece(placedId: string, x: number, z: number): void;
-  /** A ring drag or rotate-mode drag set one axis to an absolute angle. */
+  /** A handle drag or rotate-mode drag set one axis to an absolute angle. */
   onRotatePiece(placedId: string, axis: RotationAxis, angleDeg: number): void;
-  /** Grabbing a rotation ring switches the selection to Rotate mode. */
+  /** Grabbing a rotation handle switches the selection to Rotate mode. */
   onBeginRotate(placedId: string): void;
-  /** The pointer hovers a rotation ring (Rotate mode only), or none. */
-  onRingHover(axis: RotationAxis | null): void;
+  /** The pointer hovers a rotation handle (Rotate mode only), or none. */
+  onHandleHover(axis: RotationAxis | null): void;
 }
 
 /** Zoom step: each click moves the camera 20% closer / farther. */
@@ -125,64 +123,68 @@ export function createViewport(
   // from drags by a few pixels of movement.
   //
   // Milestone 4 adds two rotate gestures, both Rotate-mode only.
-  // Grabbing a rotation ring rotates the piece about that ring's
-  // axis, following the pointer around the ring and snapping to the
-  // panel's step (hold Alt to drag freely); in Rotate mode, dragging
-  // the piece itself turns it around the vertical (Y) axis. Both
-  // report absolute angles, so the App stays the single source of
-  // truth for rotation. In Move mode the rings are hidden, so a ring
-  // grab can never accidentally rotate a piece being moved. Hovering
-  // a ring highlights it, shows a grab cursor, and names its axis in
-  // the panel.
+  // Grabbing a rotation handle rotates the piece about that handle's
+  // axis, following the pointer around the handle, with Tinkercad's
+  // snap rule: inside the protractor circle the drag snaps to 22.5°,
+  // outside it turns freely in 1° steps, holding Shift snaps to 45°.
+  // A protractor with a live angle readout shows while dragging. In
+  // Rotate mode, dragging the piece itself turns it around the
+  // vertical (Y) axis. Both report absolute angles, so the App stays
+  // the single source of truth for rotation. In Move mode the handles
+  // are hidden, so a handle grab can never accidentally rotate a piece
+  // being moved. Hovering a handle highlights it, shows a grab cursor,
+  // and names its axis in the panel. Hover and drag share the same
+  // handle hit test, so they can never disagree.
   const CLICK_SLOP_PX = 4;
   /** Degrees of Y rotation per pixel of horizontal drag in Rotate mode. */
   const ROTATE_DRAG_DEGREES_PER_PX = 0.5;
   let selectionMode: SelectionMode = 'move';
-  /** The panel's quick-rotate step; ring drags snap to it (Alt drags freely). */
-  let rotateStep = 45;
-  /** The ring the pointer currently hovers, if any — for highlight + cursor. */
-  let hoveredRing: RotationAxis | null = null;
+  /** The handle the pointer currently hovers, if any — for highlight + cursor. */
+  let hoveredHandle: RotationAxis | null = null;
   let downAt: { x: number; y: number } | null = null;
   type Gesture =
     | { kind: 'move'; placedId: string; grabOffset: { x: number; z: number } }
     | {
-        kind: 'ring';
+        kind: 'handle';
         placedId: string;
         axis: RotationAxis;
         startAngleDeg: number;
         startRotationDeg: number;
         lastAngleDeg: number;
         totalDeltaDeg: number;
+        /** The protractor radius at the drag start, for the snap rule. */
+        radiusMm: number;
       }
     | { kind: 'rotate'; placedId: string; startClientX: number; startRotationDeg: number };
   let gesture: Gesture | null = null;
   let moved = false;
 
   /**
-   * Hover feedback for the rotation rings: highlight the ring under
-   * the pointer, switch the cursor to a grab hand, and tell React
-   * which axis is hovered so the panel can name it. Runs only when
-   * no drag gesture is in progress.
+   * Hover feedback for the rotation handles: highlight the handle
+   * under the pointer, switch the cursor to a grab hand, and tell
+   * React which axis is hovered so the panel can name it. Runs only
+   * when no drag gesture is in progress. It uses the same hit test
+   * as a drag grab, so hover and drag always agree.
    */
-  const updateRingHover = (event: PointerEvent): void => {
+  const updateHandleHover = (event: PointerEvent): void => {
     if (designCallbacks === undefined) {
       return;
     }
     const ndc = eventToNdc(event, renderer.domElement);
-    const hovered = designScene.ringHit(ndc.x, ndc.y, camera)?.axis ?? null;
-    if (hovered !== hoveredRing) {
-      hoveredRing = hovered;
-      designScene.setRingHover(hovered);
-      designCallbacks.onRingHover(hovered);
+    const hovered = designScene.handleHit(ndc.x, ndc.y, camera)?.axis ?? null;
+    if (hovered !== hoveredHandle) {
+      hoveredHandle = hovered;
+      designScene.setHandleHover(hovered);
+      designCallbacks.onHandleHover(hovered);
     }
     renderer.domElement.style.cursor = hovered === null ? '' : 'grab';
   };
 
-  const clearRingHover = (): void => {
-    if (hoveredRing !== null) {
-      hoveredRing = null;
-      designScene.setRingHover(null);
-      designCallbacks?.onRingHover(null);
+  const clearHandleHover = (): void => {
+    if (hoveredHandle !== null) {
+      hoveredHandle = null;
+      designScene.setHandleHover(null);
+      designCallbacks?.onHandleHover(null);
     }
     renderer.domElement.style.cursor = '';
   };
@@ -190,7 +192,7 @@ export function createViewport(
   const endPointerGesture = (event: PointerEvent): void => {
     if (gesture !== null) {
       controls.enabled = true;
-      if (!moved && designCallbacks !== undefined && gesture.kind !== 'ring') {
+      if (!moved && designCallbacks !== undefined && gesture.kind !== 'handle') {
         designCallbacks.onSelectPiece(gesture.placedId, event.shiftKey);
       }
       gesture = null;
@@ -199,7 +201,8 @@ export function createViewport(
     }
     downAt = null;
     moved = false;
-    clearRingHover();
+    designScene.setProtractor(null, 0);
+    clearHandleHover();
   };
 
   const onPointerDown = (event: PointerEvent): void => {
@@ -210,23 +213,25 @@ export function createViewport(
       return;
     }
     const ndc = eventToNdc(event, renderer.domElement);
-    // Rotation rings first: grabbing one switches to Rotate mode.
-    const ring = designScene.ringHit(ndc.x, ndc.y, camera);
-    if (ring !== null) {
-      const rotation: RotationDeg | null = designScene.rotationOf(ring.placedId);
+    // Rotation handles first: grabbing one switches to Rotate mode.
+    const handle = designScene.handleHit(ndc.x, ndc.y, camera);
+    if (handle !== null) {
+      const rotation: RotationDeg | null = designScene.rotationOf(handle.placedId);
       if (rotation !== null) {
         gesture = {
-          kind: 'ring',
-          placedId: ring.placedId,
-          axis: ring.axis,
-          startAngleDeg: ring.angleDeg,
-          startRotationDeg: rotation[ring.axis],
-          lastAngleDeg: ring.angleDeg,
+          kind: 'handle',
+          placedId: handle.placedId,
+          axis: handle.axis,
+          startAngleDeg: handle.angleDeg,
+          startRotationDeg: rotation[handle.axis],
+          lastAngleDeg: handle.angleDeg,
           totalDeltaDeg: 0,
+          radiusMm: handle.radiusMm,
         };
         controls.enabled = false;
         renderer.domElement.style.cursor = 'grabbing';
-        designCallbacks.onBeginRotate(ring.placedId);
+        designScene.setProtractor(handle.axis, rotation[handle.axis]);
+        designCallbacks.onBeginRotate(handle.placedId);
         try {
           renderer.domElement.setPointerCapture(event.pointerId);
         } catch {
@@ -281,29 +286,32 @@ export function createViewport(
       }
     }
     if (gesture === null) {
-      updateRingHover(event);
+      updateHandleHover(event);
       return;
     }
     if (!moved || designCallbacks === undefined) {
       return;
     }
-    if (gesture.kind === 'ring') {
+    if (gesture.kind === 'handle') {
       const ndc = eventToNdc(event, renderer.domElement);
-      const angle = designScene.ringAngle(gesture.axis, ndc.x, ndc.y, camera);
+      const angle = designScene.handleAngle(gesture.axis, ndc.x, ndc.y, camera);
       if (angle === null) {
         return;
       }
-      gesture.totalDeltaDeg += unwrapAngleDelta(gesture.lastAngleDeg, angle);
-      gesture.lastAngleDeg = angle;
-      // Ring drags snap to the panel's step, from where the drag
-      // started; holding Alt drags freely without snapping.
-      const rawDelta = gesture.totalDeltaDeg * RING_ANGLE_SIGNS[gesture.axis];
-      const snappedDelta = event.altKey ? rawDelta : snapDeltaDeg(rawDelta, rotateStep);
-      designCallbacks.onRotatePiece(
-        gesture.placedId,
-        gesture.axis,
-        normalizeAngleDeg(gesture.startRotationDeg + snappedDelta),
+      gesture.totalDeltaDeg += unwrapAngleDelta(gesture.lastAngleDeg, angle.angleDeg);
+      gesture.lastAngleDeg = angle.angleDeg;
+      // Tinkercad's snap rule: inside the protractor circle the drag
+      // snaps to 22.5°, outside it turns freely in 1° steps, and
+      // holding Shift snaps to 45° — all from where the drag started.
+      const snappedDelta = snapDragDeltaDeg(
+        gesture.totalDeltaDeg,
+        angle.radialMm,
+        gesture.radiusMm,
+        event.shiftKey,
       );
+      const newAngle = normalizeAngleDeg(gesture.startRotationDeg + snappedDelta);
+      designScene.setProtractor(gesture.axis, newAngle);
+      designCallbacks.onRotatePiece(gesture.placedId, gesture.axis, newAngle);
       return;
     }
     if (gesture.kind === 'rotate') {
@@ -341,7 +349,8 @@ export function createViewport(
     gesture = null;
     downAt = null;
     moved = false;
-    clearRingHover();
+    designScene.setProtractor(null, 0);
+    clearHandleHover();
   };
 
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
@@ -425,12 +434,11 @@ export function createViewport(
     },
     setSelectionMode(mode: SelectionMode): void {
       selectionMode = mode;
-      // Rings only show in Rotate mode — in Move mode a ring grab
+      // Handles only show in Rotate mode — in Move mode a handle grab
       // would silently rotate a piece the user was trying to move.
-      designScene.setRingsEnabled(mode === 'rotate');
-    },
-    setRotateStep(step: number): void {
-      rotateStep = step;
+      // setHandlesEnabled re-evaluates from the last sync, so the
+      // handles appear the moment Rotate mode is entered.
+      designScene.setHandlesEnabled(mode === 'rotate');
     },
     dispose(): void {
       disposed = true;

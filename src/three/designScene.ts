@@ -4,14 +4,17 @@ import type { LibraryPiece } from '../app/library';
 import { getGeometry } from './libraryGeometry';
 import { createPieceMesh, disposePieceMesh } from './pieces';
 import {
-  createRotationRings,
-  disposeRotationRings,
-  ringAngleDeg,
-  ringHit,
-  setRingHover,
-  updateRotationRings,
-} from './rotationRings';
-import type { RotationAxis } from './rotationRings';
+  createProtractor,
+  createRotationHandles,
+  disposeRotationHandles,
+  handleAngleDeg,
+  hideProtractor,
+  setHandleHover,
+  showProtractor,
+  updateProtractorAngle,
+  updateRotationHandles,
+} from './rotationHandles';
+import type { RotationAxis } from './rotationHandles';
 
 /**
  * Keeps the Three.js scene in sync with the design data in App state.
@@ -27,6 +30,16 @@ import type { RotationAxis } from './rotationRings';
  * Picking is here too: `pick` raycasts the placed pieces and returns
  * the placed id of the piece under the pointer, or null. The viewport
  * owns the pointer events and turns a pick into select / drag / deselect.
+ *
+ * Rotation handles (Tinkercad-style, Milestone 4 rebuild): three
+ * curved-arrow handles around the single selected piece, one per
+ * axis, shown only in Rotate mode. Hover and drag share one hit test
+ * — a raycast against the handle meshes themselves — so a grab on the
+ * red handle can only ever rotate about X. The handles' visibility is
+ * re-evaluated both on `sync` and on `setHandlesEnabled`, so entering
+ * Rotate mode shows them immediately instead of waiting for the next
+ * design change (the old ring code only re-ran on sync, which is why
+ * the rings did not appear until the piece was dragged once).
  */
 
 export interface DesignScene {
@@ -41,18 +54,31 @@ export interface DesignScene {
   positionOf(placedId: string): { x: number; z: number } | null;
   /** A placed piece's stored rotation, or null when it is not in the scene. */
   rotationOf(placedId: string): RotationDeg | null;
-  /** The ring a pointer ray grabs (single selection only), or null. */
-  ringHit(
+  /** The handle a pointer ray grabs (single selection only), or null. */
+  handleHit(
     ndcX: number,
     ndcY: number,
     camera: THREE.Camera,
-  ): { placedId: string; axis: RotationAxis; angleDeg: number } | null;
-  /** The pointer's angle on one ring, or null when the ray misses the ring's plane. */
-  ringAngle(axis: RotationAxis, ndcX: number, ndcY: number, camera: THREE.Camera): number | null;
-  /** Show or hide the rotation rings. They only ever show in Rotate mode. */
-  setRingsEnabled(enabled: boolean): void;
-  /** Highlight one ring while the pointer hovers it, or clear the highlight. */
-  setRingHover(axis: RotationAxis | null): void;
+  ): {
+    placedId: string;
+    axis: RotationAxis;
+    angleDeg: number;
+    radialMm: number;
+    radiusMm: number;
+  } | null;
+  /** The pointer's angle and radius on one handle's plane, or null when the ray misses the plane. */
+  handleAngle(
+    axis: RotationAxis,
+    ndcX: number,
+    ndcY: number,
+    camera: THREE.Camera,
+  ): { angleDeg: number; radialMm: number; radiusMm: number } | null;
+  /** Show or hide the rotation handles. They only ever show in Rotate mode. */
+  setHandlesEnabled(enabled: boolean): void;
+  /** Highlight one handle while the pointer hovers it, or clear the highlight. */
+  setHandleHover(axis: RotationAxis | null): void;
+  /** Show the protractor for one axis at an angle, or hide it when axis is null. */
+  setProtractor(axis: RotationAxis | null, angleDeg: number): void;
   dispose(): void;
 }
 
@@ -145,24 +171,111 @@ function rotatedBoxCentre(geometry: THREE.BufferGeometry, rotation: RotationDeg)
   return min.add(max).multiplyScalar(0.5);
 }
 
+/** The axis a raycast hit belongs to, from the handle sub-group it is in. */
+function axisOfHit(object: THREE.Object3D | null): RotationAxis | null {
+  let current: THREE.Object3D | null = object;
+  while (current !== null) {
+    const axis = current.userData.handleAxis as RotationAxis | undefined;
+    if (axis === 'x' || axis === 'y' || axis === 'z') {
+      return axis;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
 export function createDesignScene(scene: THREE.Scene): DesignScene {
   const group = new THREE.Group();
   group.name = 'design';
   scene.add(group);
   const byId = new Map<string, THREE.Group>();
   const raycaster = new THREE.Raycaster();
-  // Rotation rings, shown around the single selected piece. They live
+  // Rotation handles, shown around the single selected piece. They live
   // directly on the scene (not in the design group, whose children
   // are one group per placed piece) — the design group has no
-  // transform, so the rings sit at the same world position either way.
-  const rings = createRotationRings();
-  scene.add(rings);
-  let ringCentre: THREE.Vector3 | null = null;
-  let ringRadius = 0;
-  let ringPlacedId: string | null = null;
-  // Rings only show in Rotate mode: in Move mode a ring grab would
+  // transform, so the handles sit at the same world position either way.
+  const handles = createRotationHandles();
+  scene.add(handles);
+  const protractor = createProtractor();
+  scene.add(protractor);
+  let handleCentre: THREE.Vector3 | null = null;
+  let handleRadius = 0;
+  let handlePlacedId: string | null = null;
+  // Handles only show in Rotate mode: in Move mode a handle grab would
   // silently rotate a piece the user was trying to move.
-  let ringsEnabled = false;
+  let handlesEnabled = false;
+  // The last synced design, so entering Rotate mode can show the
+  // handles immediately without waiting for a design change.
+  let lastPlaced: readonly PlacedPiece[] = [];
+  let lastLibrary: readonly LibraryPiece[] = [];
+  let lastSelectedIds: readonly string[] = [];
+
+  /**
+   * Recompute where the handles sit from the last synced design.
+   * Runs on every sync and whenever Rotate mode is entered or left.
+   */
+  const updateHandles = (): void => {
+    handleCentre = null;
+    handleRadius = 0;
+    handlePlacedId = null;
+    const libraryById = new Map(lastLibrary.map((piece) => [piece.id, piece]));
+    if (handlesEnabled && lastSelectedIds.length === 1) {
+      const selectedId = lastSelectedIds[0];
+      const selectedPlaced = lastPlaced.find((piece) => piece.id === selectedId);
+      const selectedObject = selectedId === undefined ? undefined : byId.get(selectedId);
+      const selectedLibrary =
+        selectedPlaced === undefined ? undefined : libraryById.get(selectedPlaced.libraryId);
+      const selectedGeometry =
+        selectedLibrary?.geometryId === undefined || selectedLibrary.geometryId === null
+          ? undefined
+          : getGeometry(selectedLibrary.geometryId);
+      if (
+        selectedPlaced !== undefined &&
+        selectedObject !== undefined &&
+        selectedGeometry !== undefined
+      ) {
+        const centre = rotatedBoxCentre(selectedGeometry, selectedPlaced.rotation);
+        centre.x += selectedPlaced.position.x;
+        centre.y += selectedObject.position.y;
+        centre.z += selectedPlaced.position.z;
+        selectedGeometry.computeBoundingSphere();
+        const sphere = selectedGeometry.boundingSphere;
+        handleCentre = centre;
+        handleRadius = (sphere?.radius ?? 0) + 14;
+        handlePlacedId = selectedId ?? null;
+      }
+    }
+    updateRotationHandles(handles, handleCentre, handleRadius);
+    if (handleCentre === null) {
+      hideProtractor(protractor);
+    }
+  };
+
+  /** The pointer's angle and radius on one handle's plane, in world space. */
+  const angleOnPlane = (
+    axis: RotationAxis,
+    ray: THREE.Ray,
+  ): { angleDeg: number; radialMm: number } | null => {
+    if (handleCentre === null) {
+      return null;
+    }
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
+      axis === 'x'
+        ? new THREE.Vector3(1, 0, 0)
+        : axis === 'y'
+          ? new THREE.Vector3(0, 1, 0)
+          : new THREE.Vector3(0, 0, 1),
+      handleCentre,
+    );
+    const point = new THREE.Vector3();
+    if (ray.intersectPlane(plane, point) === null) {
+      return null;
+    }
+    return {
+      angleDeg: handleAngleDeg(axis, handleCentre, point),
+      radialMm: point.distanceTo(handleCentre),
+    };
+  };
 
   return {
     sync(
@@ -170,6 +283,9 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       library: readonly LibraryPiece[],
       selectedIds: readonly string[],
     ): void {
+      lastPlaced = placed;
+      lastLibrary = library;
+      lastSelectedIds = selectedIds;
       const libraryById = new Map(library.map((piece) => [piece.id, piece]));
       const seen = new Set<string>();
       for (const placedPiece of placed) {
@@ -212,38 +328,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
           byId.delete(id);
         }
       }
-      // Rotation rings around the single selected piece, if any — and
-      // only in Rotate mode.
-      ringCentre = null;
-      ringRadius = 0;
-      ringPlacedId = null;
-      if (ringsEnabled && selectedIds.length === 1) {
-        const selectedId = selectedIds[0];
-        const selectedPlaced = placed.find((piece) => piece.id === selectedId);
-        const selectedObject = selectedId === undefined ? undefined : byId.get(selectedId);
-        const selectedLibrary =
-          selectedPlaced === undefined ? undefined : libraryById.get(selectedPlaced.libraryId);
-        const selectedGeometry =
-          selectedLibrary?.geometryId === undefined || selectedLibrary.geometryId === null
-            ? undefined
-            : getGeometry(selectedLibrary.geometryId);
-        if (
-          selectedPlaced !== undefined &&
-          selectedObject !== undefined &&
-          selectedGeometry !== undefined
-        ) {
-          const centre = rotatedBoxCentre(selectedGeometry, selectedPlaced.rotation);
-          centre.x += selectedPlaced.position.x;
-          centre.y += selectedObject.position.y;
-          centre.z += selectedPlaced.position.z;
-          selectedGeometry.computeBoundingSphere();
-          const sphere = selectedGeometry.boundingSphere;
-          ringCentre = centre;
-          ringRadius = (sphere?.radius ?? 0) + 14;
-          ringPlacedId = selectedId ?? null;
-        }
-      }
-      updateRotationRings(rings, ringCentre, ringRadius);
+      updateHandles();
     },
 
     pick(ndcX: number, ndcY: number, camera: THREE.Camera): string | null {
@@ -282,51 +367,83 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       };
     },
 
-    ringHit(
+    handleHit(
       ndcX: number,
       ndcY: number,
       camera: THREE.Camera,
-    ): { placedId: string; axis: RotationAxis; angleDeg: number } | null {
-      if (!ringsEnabled || ringCentre === null || ringPlacedId === null) {
+    ): {
+      placedId: string;
+      axis: RotationAxis;
+      angleDeg: number;
+      radialMm: number;
+      radiusMm: number;
+    } | null {
+      if (!handlesEnabled || handleCentre === null || handlePlacedId === null) {
         return null;
       }
       raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-      const hit = ringHit(ringCentre, ringRadius, raycaster.ray);
-      if (hit === null) {
-        return null;
+      const hits = raycaster.intersectObjects(handles.children, true);
+      for (const hit of hits) {
+        const axis = axisOfHit(hit.object);
+        if (axis === null) {
+          continue;
+        }
+        const onPlane = angleOnPlane(axis, raycaster.ray);
+        if (onPlane === null) {
+          continue;
+        }
+        return {
+          placedId: handlePlacedId,
+          axis,
+          angleDeg: onPlane.angleDeg,
+          radialMm: onPlane.radialMm,
+          radiusMm: handleRadius,
+        };
       }
-      return { placedId: ringPlacedId, axis: hit.axis, angleDeg: hit.angleDeg };
+      return null;
     },
 
-    ringAngle(axis: RotationAxis, ndcX: number, ndcY: number, camera: THREE.Camera): number | null {
-      if (!ringsEnabled || ringCentre === null) {
+    handleAngle(
+      axis: RotationAxis,
+      ndcX: number,
+      ndcY: number,
+      camera: THREE.Camera,
+    ): { angleDeg: number; radialMm: number; radiusMm: number } | null {
+      if (!handlesEnabled || handleCentre === null) {
         return null;
       }
       raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
-        axis === 'x'
-          ? new THREE.Vector3(1, 0, 0)
-          : axis === 'y'
-            ? new THREE.Vector3(0, 1, 0)
-            : new THREE.Vector3(0, 0, 1),
-        ringCentre,
-      );
-      const point = new THREE.Vector3();
-      if (raycaster.ray.intersectPlane(plane, point) === null) {
+      const onPlane = angleOnPlane(axis, raycaster.ray);
+      if (onPlane === null) {
         return null;
       }
-      return ringAngleDeg(axis, ringCentre, point);
+      return { ...onPlane, radiusMm: handleRadius };
     },
 
-    setRingsEnabled(enabled: boolean): void {
-      ringsEnabled = enabled;
+    setHandlesEnabled(enabled: boolean): void {
+      handlesEnabled = enabled;
       if (!enabled) {
-        setRingHover(rings, null);
+        setHandleHover(handles, null);
       }
+      // Re-evaluate immediately from the last sync: entering Rotate
+      // mode must show the handles at once, not on the next drag.
+      updateHandles();
     },
 
-    setRingHover(axis: RotationAxis | null): void {
-      setRingHover(rings, axis);
+    setHandleHover(axis: RotationAxis | null): void {
+      setHandleHover(handles, axis);
+    },
+
+    setProtractor(axis: RotationAxis | null, angleDeg: number): void {
+      if (axis === null || handleCentre === null || handleRadius <= 0) {
+        hideProtractor(protractor);
+        return;
+      }
+      if (!protractor.visible) {
+        showProtractor(protractor, axis, handleCentre, handleRadius, angleDeg);
+        return;
+      }
+      updateProtractorAngle(protractor, angleDeg);
     },
 
     dispose(): void {
@@ -335,8 +452,9 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         disposePieceMesh(object);
       }
       byId.clear();
-      disposeRotationRings(rings);
-      scene.remove(rings);
+      disposeRotationHandles(handles);
+      scene.remove(handles);
+      scene.remove(protractor);
       scene.remove(group);
     },
   };
