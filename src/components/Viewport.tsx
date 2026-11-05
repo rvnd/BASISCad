@@ -36,8 +36,8 @@ export default function Viewport({
     <div className="viewport" ref={containerRef} role="region" aria-label="3D workplane">
       <p className="viewport-note">
         Workplane · 1,000 × 1,000 mm — drag to orbit, scroll to zoom. Click Place in the Shapes
-        panel to put a piece down, then drag the piece to move it. In Rotate mode, drag a coloured
-        ring around a selected piece to turn it.
+        panel to put a piece down, then drag the piece to move it. In Rotate mode, grab a coloured
+        ring by its knob (red X, green Y, blue Z) to turn the piece.
       </p>
     </div>
   );

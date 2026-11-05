@@ -124,7 +124,7 @@ describe('designScene', () => {
     design.dispose();
   });
 
-  it('shows the rotation rings only for a single selected piece', () => {
+  it('shows the rotation rings only for a single selected piece in Rotate mode', () => {
     const scene = new THREE.Scene();
     const design = createDesignScene(scene);
     registerGeometry('test-box-6', testBox(50, 3, 12));
@@ -133,6 +133,11 @@ describe('designScene', () => {
       createPlacedPiece('p1', 'girder-1x4', 0, small),
       createPlacedPiece('p2', 'girder-1x4', 1, small),
     ];
+    // Move mode (the default): no rings, even for a single selection.
+    design.sync(placed, library, ['p1']);
+    expect(scene.getObjectByName('rotation-rings')?.visible).toBe(false);
+    // Rotate mode: rings show for one piece, not for two or none.
+    design.setRingsEnabled(true);
     design.sync(placed, library, ['p1']);
     expect(scene.getObjectByName('rotation-rings')?.visible).toBe(true);
     design.sync(placed, library, ['p1', 'p2']);

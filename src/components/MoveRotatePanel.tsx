@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { PositionMm, RotationDeg, SelectionMode } from '../app/design';
 import { ROTATION_STEPS } from '../app/rotation';
 import { parseAngleInput, parsePositionInput } from '../app/rotation';
+import { RING_AXIS_COLOUR_NAMES, RING_AXIS_HEX } from '../three/rotationRings';
+import type { RotationAxis } from '../three/rotationRings';
 
 /**
  * Move and rotate controls (Milestone 4), as an overlay panel in the
@@ -37,13 +39,23 @@ interface NumberFieldProps {
   value: number;
   unit: string;
   disabled: boolean;
+  /** Colour dot shown by the label, matching the ring of this axis. */
+  accentHex?: string;
   /** Called with the typed value when the user commits it. */
   onCommit: (value: number) => void;
   parse: (text: string) => number | null;
 }
 
 /** A typed number field: Enter or blur commits, anything invalid reverts. */
-function NumberField({ label, value, unit, disabled, onCommit, parse }: NumberFieldProps) {
+function NumberField({
+  label,
+  value,
+  unit,
+  disabled,
+  accentHex,
+  onCommit,
+  parse,
+}: NumberFieldProps) {
   const [draft, setDraft] = useState(formatNumber(value));
   // When the live value changes from outside (a step button, a drag,
   // another field), the draft follows it. This is the render-time
@@ -68,6 +80,9 @@ function NumberField({ label, value, unit, disabled, onCommit, parse }: NumberFi
   return (
     <label className="field">
       <span className="field-label">
+        {accentHex !== undefined && (
+          <span className="axis-dot" style={{ backgroundColor: accentHex }} aria-hidden="true" />
+        )}
         {label} <span className="field-unit">({unit})</span>
       </span>
       <input
@@ -104,6 +119,8 @@ interface MoveRotatePanelProps {
   selectedCount: number;
   mode: SelectionMode;
   step: number;
+  /** The rotation ring the pointer currently hovers, if any. */
+  hoverAxis: RotationAxis | null;
   onSetMode: (mode: SelectionMode) => void;
   onSetStep: (step: number) => void;
   onMove: (axis: Axis, value: number) => void;
@@ -118,6 +135,7 @@ export default function MoveRotatePanel({
   selectedCount,
   mode,
   step,
+  hoverAxis,
   onSetMode,
   onSetStep,
   onMove,
@@ -158,8 +176,26 @@ export default function MoveRotatePanel({
       </div>
       <p className="panel-note">
         {mode === 'move'
-          ? 'Drag the piece to move it, or type exact coordinates below.'
-          : 'Drag the piece to turn it, or drag a coloured ring around it.'}
+          ? 'Drag the piece to move it, or type exact coordinates below. Switch to Rotate to show the rotation rings.'
+          : 'Grab a coloured ring by its knob to turn about that ring’s axis — ring drags snap to the step below (hold Alt to drag freely). Or drag the piece itself to turn it about Y (up).'}
+      </p>
+      {hoverAxis !== null && (
+        <p
+          className="ring-hover-note"
+          style={{ color: RING_AXIS_HEX[hoverAxis] }}
+          aria-live="polite"
+        >
+          Drag to rotate about {hoverAxis.toUpperCase()} — grab the{' '}
+          {RING_AXIS_COLOUR_NAMES[hoverAxis]} ring.
+        </p>
+      )}
+      <p className="ring-legend">
+        <span style={{ color: RING_AXIS_HEX.x }}>● Red = X</span>
+        {', '}
+        <span style={{ color: RING_AXIS_HEX.y }}>● Green = Y</span>
+        {', '}
+        <span style={{ color: RING_AXIS_HEX.z }}>● Blue = Z</span>
+        {' — drag a ring, or use the buttons.'}
       </p>
 
       <h3 className="move-rotate-heading">Move</h3>
@@ -174,6 +210,7 @@ export default function MoveRotatePanel({
               value={single.position[axis]}
               unit="mm"
               disabled={false}
+              accentHex={RING_AXIS_HEX[axis]}
               parse={parsePositionInput}
               onCommit={(value) => {
                 onMove(axis, value);
@@ -198,6 +235,7 @@ export default function MoveRotatePanel({
               value={single.rotation[axis]}
               unit="°"
               disabled={false}
+              accentHex={RING_AXIS_HEX[axis]}
               parse={parseAngleInput}
               onCommit={(value) => {
                 onSetAngle(axis, value);
@@ -224,7 +262,12 @@ export default function MoveRotatePanel({
       </div>
       {AXES.map((axis) => (
         <div key={axis} className="rotate-row">
-          <span className="rotate-axis">{axis.toUpperCase()}</span>
+          <span
+            className="rotate-axis"
+            style={{ backgroundColor: RING_AXIS_HEX[axis], color: '#ffffff' }}
+          >
+            {axis.toUpperCase()}
+          </span>
           <button
             type="button"
             className="control-button rotate-button"

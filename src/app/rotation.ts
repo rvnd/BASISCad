@@ -54,6 +54,19 @@ export function flipRotation(rotation: RotationDeg, axis: keyof RotationDeg): Ro
   return addRotation(rotation, axis, 180);
 }
 
+/**
+ * Snap a rotation change to the nearest multiple of a step size, so a
+ * ring drag moves in step-sized jumps from where the drag started:
+ * a 17° drag at a 15° step becomes 15°, a 23° drag becomes 30°, and a
+ * -30° drag stays -30°. A step of 0 or less means no snapping.
+ */
+export function snapDeltaDeg(delta: number, step: number): number {
+  if (!(step > 0)) {
+    return delta;
+  }
+  return Math.round(delta / step) * step;
+}
+
 /** No rotation on any axis. */
 export function resetRotation(): RotationDeg {
   return { x: 0, y: 0, z: 0 };
