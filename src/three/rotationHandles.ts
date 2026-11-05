@@ -167,11 +167,15 @@ export function handleTangent(axis: RotationAxis, angleDeg: number): THREE.Vecto
 const LABEL_RADIUS = 1.28;
 
 /** Arc tube, knob, and arrowhead sizes, in handle radii (the group is scaled by the handle radius). */
-const ARC_TUBE = 0.035;
+/* Thin arc, with an arrowhead that stands out clearly against it:
+// the arrow is ~4x the tube radius wide, so it reads as an arrow
+// first and a line second. */
+const ARC_TUBE = 0.022;
+const HIT_TUBE = 0.06;
 const KNOB_RADIUS = 0.1;
-const ARROW_RADIUS = 0.075;
-const ARROW_HEIGHT = 0.2;
-const LABEL_SIZE = 0.42;
+const ARROW_RADIUS = 0.09;
+const ARROW_HEIGHT = 0.24;
+const LABEL_SIZE = 0.36;
 
 /** A label sprite: the axis letter on a white disc with a coloured rim. */
 function createAxisLabelSprite(axis: RotationAxis): THREE.Sprite {
@@ -203,7 +207,7 @@ function createAxisLabelSprite(axis: RotationAxis): THREE.Sprite {
   context.strokeStyle = hex;
   context.stroke();
   context.fillStyle = hex;
-  context.font = 'bold 72px Arial, sans-serif';
+  context.font = 'bold 64px Arial, sans-serif';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(axis.toUpperCase(), 64, 68);
@@ -277,6 +281,18 @@ export function createRotationHandles(): THREE.Group {
     arc.name = `rotation-handle-arc-${axis}`;
     arc.userData.handleAxis = axis;
     sub.add(arc);
+
+    // The thin arc is hard to grab, especially for kids — an
+    // invisible, fatter tube along the same curve keeps the grab
+    // target as forgiving as before. Fully transparent, so it never
+    // shows; it only exists for the raycast hit test.
+    const hitTube = new THREE.Mesh(
+      new THREE.TubeGeometry(new HandleArcCurve(axis), 32, HIT_TUBE, 8),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    hitTube.name = `rotation-handle-hit-${axis}`;
+    hitTube.userData.handleAxis = axis;
+    sub.add(hitTube);
 
     const arrowhead = new THREE.Mesh(
       new THREE.ConeGeometry(ARROW_RADIUS, ARROW_HEIGHT, 16),
