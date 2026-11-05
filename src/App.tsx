@@ -64,6 +64,8 @@ export default function App() {
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('move');
   // Milestone 4: the quick-rotate step size for the panel buttons.
   const [rotateStep, setRotateStep] = useState(45);
+  // Milestone 4 fix: the rotation ring the pointer currently hovers.
+  const [ringHover, setRingHover] = useState<RotationAxis | null>(null);
   const placedCounter = useRef(0);
 
   // Load the bundled temporary stand-in STLs (see
@@ -167,6 +169,11 @@ export default function App() {
     viewportRef.current?.setSelectionMode(selectionMode);
   }, [selectionMode, viewportReady]);
 
+  // Keep the viewport's ring-drag snapping in step with the panel step.
+  useEffect(() => {
+    viewportRef.current?.setRotateStep(rotateStep);
+  }, [rotateStep, viewportReady]);
+
   const sizeById: ReadonlyMap<string, PieceSizeMm> = useMemo(() => {
     const map = new Map<string, PieceSizeMm>();
     for (const piece of libraryPieces) {
@@ -210,6 +217,9 @@ export default function App() {
       onBeginRotate(): void {
         // Grabbing a ring switches the selection to Rotate mode.
         setSelectionMode('rotate');
+      },
+      onRingHover(axis: RotationAxis | null): void {
+        setRingHover(axis);
       },
     }),
     [],
@@ -340,6 +350,7 @@ export default function App() {
             selectedCount={selectedIds.length}
             mode={selectionMode}
             step={rotateStep}
+            hoverAxis={ringHover}
             onSetMode={setSelectionMode}
             onSetStep={setRotateStep}
             onMove={moveSelected}

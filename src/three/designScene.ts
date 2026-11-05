@@ -8,6 +8,7 @@ import {
   disposeRotationRings,
   ringAngleDeg,
   ringHit,
+  setRingHover,
   updateRotationRings,
 } from './rotationRings';
 import type { RotationAxis } from './rotationRings';
@@ -48,6 +49,10 @@ export interface DesignScene {
   ): { placedId: string; axis: RotationAxis; angleDeg: number } | null;
   /** The pointer's angle on one ring, or null when the ray misses the ring's plane. */
   ringAngle(axis: RotationAxis, ndcX: number, ndcY: number, camera: THREE.Camera): number | null;
+  /** Show or hide the rotation rings. They only ever show in Rotate mode. */
+  setRingsEnabled(enabled: boolean): void;
+  /** Highlight one ring while the pointer hovers it, or clear the highlight. */
+  setRingHover(axis: RotationAxis | null): void;
   dispose(): void;
 }
 
@@ -155,6 +160,9 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
   let ringCentre: THREE.Vector3 | null = null;
   let ringRadius = 0;
   let ringPlacedId: string | null = null;
+  // Rings only show in Rotate mode: in Move mode a ring grab would
+  // silently rotate a piece the user was trying to move.
+  let ringsEnabled = false;
 
   return {
     sync(
@@ -204,11 +212,12 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
           byId.delete(id);
         }
       }
-      // Rotation rings around the single selected piece, if any.
+      // Rotation rings around the single selected piece, if any — and
+      // only in Rotate mode.
       ringCentre = null;
       ringRadius = 0;
       ringPlacedId = null;
-      if (selectedIds.length === 1) {
+      if (ringsEnabled && selectedIds.length === 1) {
         const selectedId = selectedIds[0];
         const selectedPlaced = placed.find((piece) => piece.id === selectedId);
         const selectedObject = selectedId === undefined ? undefined : byId.get(selectedId);
@@ -278,7 +287,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       ndcY: number,
       camera: THREE.Camera,
     ): { placedId: string; axis: RotationAxis; angleDeg: number } | null {
-      if (ringCentre === null || ringPlacedId === null) {
+      if (!ringsEnabled || ringCentre === null || ringPlacedId === null) {
         return null;
       }
       raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
@@ -290,7 +299,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
     },
 
     ringAngle(axis: RotationAxis, ndcX: number, ndcY: number, camera: THREE.Camera): number | null {
-      if (ringCentre === null) {
+      if (!ringsEnabled || ringCentre === null) {
         return null;
       }
       raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
@@ -307,6 +316,17 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         return null;
       }
       return ringAngleDeg(axis, ringCentre, point);
+    },
+
+    setRingsEnabled(enabled: boolean): void {
+      ringsEnabled = enabled;
+      if (!enabled) {
+        setRingHover(rings, null);
+      }
+    },
+
+    setRingHover(axis: RotationAxis | null): void {
+      setRingHover(rings, axis);
     },
 
     dispose(): void {

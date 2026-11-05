@@ -1,7 +1,80 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { RING_ANGLE_SIGNS, ringAngleDeg, ringHit, unwrapAngleDelta } from './rotationRings';
+import {
+  RING_ANGLE_SIGNS,
+  createRotationRings,
+  ringAngleDeg,
+  ringHit,
+  ringLabelOffset,
+  setRingHover,
+  unwrapAngleDelta,
+} from './rotationRings';
 import type { RotationAxis } from './rotationRings';
+
+describe('ringLabelOffset', () => {
+  it('sits on its own ring, off the other rings, and away from the other labels', () => {
+    const offsets: Record<RotationAxis, THREE.Vector3> = {
+      x: ringLabelOffset('x'),
+      y: ringLabelOffset('y'),
+      z: ringLabelOffset('z'),
+    };
+    for (const axis of ['x', 'y', 'z'] as const) {
+      // A unit direction from the centre, so it sits on the ring.
+      expect(offsets[axis].length()).toBeCloseTo(1, 6);
+      // On its own ring's plane: x is 0 on the YZ ring, y is 0 on XZ, z is 0 on XY.
+      expect(offsets[axis][axis]).toBeCloseTo(0, 6);
+    }
+    // No two labels coincide: each pair is well apart.
+    const axes: RotationAxis[] = ['x', 'y', 'z'];
+    for (let i = 0; i < axes.length; i += 1) {
+      for (let j = i + 1; j < axes.length; j += 1) {
+        const a = axes[i];
+        const b = axes[j];
+        expect(offsets[a as RotationAxis].distanceTo(offsets[b as RotationAxis])).toBeGreaterThan(
+          0.5,
+        );
+      }
+    }
+  });
+});
+
+describe('createRotationRings', () => {
+  it('builds a ring, a knob, and a letter label per axis', () => {
+    const group = createRotationRings();
+    expect(group.visible).toBe(false);
+    for (const axis of ['x', 'y', 'z'] as const) {
+      expect(group.getObjectByName(`rotation-ring-${axis}`)).toBeDefined();
+      const knob = group.getObjectByName(`rotation-ring-knob-${axis}`);
+      expect(knob).toBeDefined();
+      // The knob sits on its ring, at the label point.
+      expect(knob?.position.distanceTo(ringLabelOffset(axis))).toBeCloseTo(0, 6);
+      const label = group.getObjectByName(`rotation-ring-label-${axis}`);
+      expect(label).toBeDefined();
+      expect(label).toBeInstanceOf(THREE.Sprite);
+      // The label sits just outside the ring, past the knob.
+      expect(label?.position.length()).toBeGreaterThan(1);
+    }
+  });
+});
+
+describe('setRingHover', () => {
+  it('brightens and enlarges only the hovered ring, and clears on null', () => {
+    const group = createRotationRings();
+    const knobX = group.getObjectByName('rotation-ring-knob-x');
+    const knobY = group.getObjectByName('rotation-ring-knob-y');
+    const ringX = group.getObjectByName('rotation-ring-x') as THREE.Mesh;
+    const material = ringX.material as THREE.MeshBasicMaterial;
+    const baseRed = material.color.r;
+    setRingHover(group, 'x');
+    expect(knobX?.scale.x).toBeCloseTo(1.5, 6);
+    expect(knobY?.scale.x).toBeCloseTo(1, 6);
+    // Lightened towards white: the red channel is brighter than the base red.
+    expect(material.color.r).toBeGreaterThan(baseRed);
+    setRingHover(group, null);
+    expect(knobX?.scale.x).toBeCloseTo(1, 6);
+    expect(material.color.r).toBeCloseTo(baseRed, 6);
+  });
+});
 
 describe('ringAngleDeg', () => {
   it('moves with a real three.js rotation, with the documented sign', () => {

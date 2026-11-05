@@ -32,6 +32,20 @@ export const RING_AXIS_COLOURS: Record<RotationAxis, number> = {
   z: 0x1971c2,
 };
 
+/** The same axis colours as CSS hex strings, for the panel. */
+export const RING_AXIS_HEX: Record<RotationAxis, string> = {
+  x: '#D03F43',
+  y: '#2B8A3E',
+  z: '#1971C2',
+};
+
+/** Plain-language colour names, for hover hints and tooltips. */
+export const RING_AXIS_COLOUR_NAMES: Record<RotationAxis, string> = {
+  x: 'red',
+  y: 'green',
+  z: 'blue',
+};
+
 export const RING_ANGLE_SIGNS: Record<RotationAxis, 1 | -1> = { x: 1, y: 1, z: 1 };
 
 /** How far from a ring's radius, in mm, a pointer still counts as grabbing it. */
@@ -102,21 +116,109 @@ export function ringHit(centre: THREE.Vector3, radius: number, ray: THREE.Ray): 
 }
 
 /**
+ * Where a ring's label and grab knob sit on it, as a unit direction
+ * from the ring centre (multiply by the ring radius for a position).
+ *
+ * The rings cross each other, so the three points are chosen so no
+ * two coincide: each sits 45° around its own ring, in the
+ * front-top-right octant — X at the top-front of its YZ ring, Y at the
+ * front-right of its XZ ring, Z at the top-right of its XY ring.
+ * Each point lies on its own ring's plane and off the other two rings'
+ * planes, so the labels never overlap each other.
+ */
+export function ringLabelOffset(axis: RotationAxis): THREE.Vector3 {
+  const d = Math.SQRT1_2;
+  if (axis === 'x') {
+    return new THREE.Vector3(0, d, d);
+  }
+  if (axis === 'y') {
+    return new THREE.Vector3(d, 0, d);
+  }
+  return new THREE.Vector3(d, d, 0);
+}
+
+/** How far out from the ring, in ring radii, a label sprite sits. */
+const LABEL_RADIUS = 1.22;
+
+/** Knob radius and label size, in ring radii (the group is scaled by the ring radius). */
+const KNOB_RADIUS = 0.085;
+const LABEL_SIZE = 0.42;
+
+/** A label sprite: the axis letter on a white disc with a coloured rim. */
+function createAxisLabelSprite(axis: RotationAxis): THREE.Sprite {
+  // Vitest runs in node, where there is no document: build the sprite
+  // with a plain material there (tests check its name and position,
+  // not its pixels); in the browser the canvas letter is drawn.
+  if (typeof document === 'undefined') {
+    const material = new THREE.SpriteMaterial({ color: 0xffffff });
+    const sprite = new THREE.Sprite(material);
+    sprite.name = `rotation-ring-label-${axis}`;
+    sprite.scale.setScalar(LABEL_SIZE);
+    sprite.position.copy(ringLabelOffset(axis)).multiplyScalar(LABEL_RADIUS);
+    return sprite;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext('2d');
+  if (context === null) {
+    throw new Error('Could not draw the rotation ring label.');
+  }
+  const hex = RING_AXIS_HEX[axis];
+  context.beginPath();
+  context.arc(64, 64, 56, 0, Math.PI * 2);
+  context.fillStyle = '#ffffff';
+  context.fill();
+  context.lineWidth = 10;
+  context.strokeStyle = hex;
+  context.stroke();
+  context.fillStyle = hex;
+  context.font = 'bold 72px Arial, sans-serif';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(axis.toUpperCase(), 64, 68);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({ map: texture, depthTest: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.name = `rotation-ring-label-${axis}`;
+  sprite.scale.setScalar(LABEL_SIZE);
+  sprite.position.copy(ringLabelOffset(axis)).multiplyScalar(LABEL_RADIUS);
+  return sprite;
+}
+
+interface RingParts {
+  ring: THREE.Mesh;
+  knob: THREE.Mesh;
+  label: THREE.Sprite;
+  baseColour: THREE.Color;
+  baseKnobScale: number;
+  baseLabelScale: number;
+}
+
+/** Lighten a colour towards white, for the hovered ring. */
+function lightenColour(colour: THREE.Color, amount: number): THREE.Color {
+  return colour.clone().lerp(new THREE.Color(0xffffff), amount);
+}
+
+/**
  * The three ring meshes, built once and moved/scaled by
  * `updateRotationRings`. Each torus has radius 1 and is scaled to the
- * ring radius, so its tube stays proportional. The group is hidden
- * when there is no single selected piece.
+ * ring radius, so its tube stays proportional. Every ring also gets a
+ * visible grab knob (a sphere in the ring's colour) and a letter
+ * label sprite at the same point on the ring, so there is an obvious
+ * place to grab and the axis is named in the 3D view. The group is
+ * hidden when there is no single selected piece.
  */
 export function createRotationRings(): THREE.Group {
   const group = new THREE.Group();
   group.name = 'rotation-rings';
   group.visible = false;
+  const parts: Partial<Record<RotationAxis, RingParts>> = {};
   for (const axis of RING_AXES) {
+    const baseColour = new THREE.Color(RING_AXIS_COLOURS[axis]);
     const geometry = new THREE.TorusGeometry(1, 0.025, 12, 64);
-    const mesh = new THREE.Mesh(
-      geometry,
-      new THREE.MeshBasicMaterial({ color: RING_AXIS_COLOURS[axis] }),
-    );
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: baseColour }));
     mesh.name = `rotation-ring-${axis}`;
     if (axis === 'x') {
       mesh.rotation.y = Math.PI / 2;
@@ -124,8 +226,58 @@ export function createRotationRings(): THREE.Group {
       mesh.rotation.x = Math.PI / 2;
     }
     group.add(mesh);
+    const knob = new THREE.Mesh(
+      new THREE.SphereGeometry(KNOB_RADIUS, 20, 14),
+      new THREE.MeshBasicMaterial({ color: baseColour }),
+    );
+    knob.name = `rotation-ring-knob-${axis}`;
+    knob.position.copy(ringLabelOffset(axis));
+    group.add(knob);
+    const label = createAxisLabelSprite(axis);
+    group.add(label);
+    parts[axis] = {
+      ring: mesh,
+      knob,
+      label,
+      baseColour,
+      baseKnobScale: 1,
+      baseLabelScale: LABEL_SIZE,
+    };
   }
+  group.userData.ringParts = parts;
   return group;
+}
+
+/** The per-axis meshes a ring group was built with, if any. */
+function ringPartsOf(group: THREE.Group): Partial<Record<RotationAxis, RingParts>> {
+  const parts = group.userData.ringParts as Partial<Record<RotationAxis, RingParts>> | undefined;
+  return parts ?? {};
+}
+
+/**
+ * Highlight one ring (and its knob and label) while the pointer hovers
+ * it, and restore the others. Pass null to clear the highlight.
+ * The hovered ring brightens towards white, its knob grows, and its
+ * label grows — the other two rings are left exactly as they were.
+ */
+export function setRingHover(group: THREE.Group, axis: RotationAxis | null): void {
+  for (const entry of RING_AXES) {
+    const parts = ringPartsOf(group)[entry];
+    if (parts === undefined) {
+      continue;
+    }
+    const hovered = entry === axis;
+    const ringMaterial = parts.ring.material;
+    if (ringMaterial instanceof THREE.MeshBasicMaterial) {
+      ringMaterial.color.copy(hovered ? lightenColour(parts.baseColour, 0.45) : parts.baseColour);
+    }
+    const knobMaterial = parts.knob.material;
+    if (knobMaterial instanceof THREE.MeshBasicMaterial) {
+      knobMaterial.color.copy(hovered ? lightenColour(parts.baseColour, 0.45) : parts.baseColour);
+    }
+    parts.knob.scale.setScalar(hovered ? 1.5 : parts.baseKnobScale);
+    parts.label.scale.setScalar(hovered ? parts.baseLabelScale * 1.3 : parts.baseLabelScale);
+  }
 }
 
 /** Place the rings around a piece's centre at a radius, or hide them. */
@@ -156,6 +308,12 @@ export function disposeRotationRings(group: THREE.Group): void {
       } else {
         material.dispose();
       }
+    } else if (object instanceof THREE.Sprite) {
+      const material = object.material;
+      if (material.map !== null) {
+        material.map.dispose();
+      }
+      material.dispose();
     }
   });
 }

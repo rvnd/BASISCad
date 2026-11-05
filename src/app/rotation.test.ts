@@ -7,6 +7,7 @@ import {
   parseAngleInput,
   resetRotation,
   setRotation,
+  snapDeltaDeg,
 } from './rotation';
 
 describe('normalizeAngleDeg', () => {
@@ -76,5 +77,20 @@ describe('parseAngleInput', () => {
     expect(parseAngleInput('1e3')).toBeNull();
     expect(parseAngleInput('30 45')).toBeNull();
     expect(parseAngleInput('--30')).toBeNull();
+  });
+});
+
+describe('snapDeltaDeg', () => {
+  it('snaps a drag to the nearest step multiple from where it started', () => {
+    expect(snapDeltaDeg(17, 15)).toBe(15);
+    expect(snapDeltaDeg(23, 15)).toBe(30);
+    expect(snapDeltaDeg(-30, 45)).toBe(-45);
+    expect(snapDeltaDeg(100, 45)).toBe(90);
+    expect(snapDeltaDeg(7, 90)).toBe(0);
+    expect(snapDeltaDeg(50, 90)).toBe(90);
+  });
+
+  it('leaves the delta alone when there is no step', () => {
+    expect(snapDeltaDeg(17.3, 0)).toBe(17.3);
   });
 });

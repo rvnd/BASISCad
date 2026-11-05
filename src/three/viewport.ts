@@ -4,7 +4,7 @@ import { getCameraView } from './cameraViews';
 import type { CameraViewId } from './cameraViews';
 import { createDesignScene } from './designScene';
 import type { PlacedPiece, RotationDeg, SelectionMode } from '../app/design';
-import { normalizeAngleDeg } from '../app/rotation';
+import { normalizeAngleDeg, snapDeltaDeg } from '../app/rotation';
 import type { LibraryPiece } from '../app/library';
 import { createFramingCamera, createWorkplane } from './workplane';
 import { eventToNdc, pointerToWorkplane } from './pointer';
@@ -42,6 +42,8 @@ export interface ViewportHandle {
   ): void;
   /** What dragging a selected piece does (Milestone 4). */
   setSelectionMode(mode: SelectionMode): void;
+  /** The quick-rotate step ring drags snap to (Milestone 4 fix). */
+  setRotateStep(step: number): void;
 }
 
 /**
@@ -59,6 +61,8 @@ export interface ViewportDesignCallbacks {
   onRotatePiece(placedId: string, axis: RotationAxis, angleDeg: number): void;
   /** Grabbing a rotation ring switches the selection to Rotate mode. */
   onBeginRotate(placedId: string): void;
+  /** The pointer hovers a rotation ring (Rotate mode only), or none. */
+  onRingHover(axis: RotationAxis | null): void;
 }
 
 /** Zoom step: each click moves the camera 20% closer / farther. */
@@ -120,15 +124,24 @@ export function createViewport(
   // release without moving deselects everything. Clicks are told apart
   // from drags by a few pixels of movement.
   //
-  // Milestone 4 adds two rotate gestures. Grabbing a rotation ring
-  // rotates the piece about that ring's axis, following the pointer
-  // around the ring; in Rotate mode, dragging the piece itself turns
-  // it around the vertical (Y) axis. Both report absolute angles, so
-  // the App stays the single source of truth for rotation.
+  // Milestone 4 adds two rotate gestures, both Rotate-mode only.
+  // Grabbing a rotation ring rotates the piece about that ring's
+  // axis, following the pointer around the ring and snapping to the
+  // panel's step (hold Alt to drag freely); in Rotate mode, dragging
+  // the piece itself turns it around the vertical (Y) axis. Both
+  // report absolute angles, so the App stays the single source of
+  // truth for rotation. In Move mode the rings are hidden, so a ring
+  // grab can never accidentally rotate a piece being moved. Hovering
+  // a ring highlights it, shows a grab cursor, and names its axis in
+  // the panel.
   const CLICK_SLOP_PX = 4;
   /** Degrees of Y rotation per pixel of horizontal drag in Rotate mode. */
   const ROTATE_DRAG_DEGREES_PER_PX = 0.5;
   let selectionMode: SelectionMode = 'move';
+  /** The panel's quick-rotate step; ring drags snap to it (Alt drags freely). */
+  let rotateStep = 45;
+  /** The ring the pointer currently hovers, if any — for highlight + cursor. */
+  let hoveredRing: RotationAxis | null = null;
   let downAt: { x: number; y: number } | null = null;
   type Gesture =
     | { kind: 'move'; placedId: string; grabOffset: { x: number; z: number } }
@@ -145,6 +158,35 @@ export function createViewport(
   let gesture: Gesture | null = null;
   let moved = false;
 
+  /**
+   * Hover feedback for the rotation rings: highlight the ring under
+   * the pointer, switch the cursor to a grab hand, and tell React
+   * which axis is hovered so the panel can name it. Runs only when
+   * no drag gesture is in progress.
+   */
+  const updateRingHover = (event: PointerEvent): void => {
+    if (designCallbacks === undefined) {
+      return;
+    }
+    const ndc = eventToNdc(event, renderer.domElement);
+    const hovered = designScene.ringHit(ndc.x, ndc.y, camera)?.axis ?? null;
+    if (hovered !== hoveredRing) {
+      hoveredRing = hovered;
+      designScene.setRingHover(hovered);
+      designCallbacks.onRingHover(hovered);
+    }
+    renderer.domElement.style.cursor = hovered === null ? '' : 'grab';
+  };
+
+  const clearRingHover = (): void => {
+    if (hoveredRing !== null) {
+      hoveredRing = null;
+      designScene.setRingHover(null);
+      designCallbacks?.onRingHover(null);
+    }
+    renderer.domElement.style.cursor = '';
+  };
+
   const endPointerGesture = (event: PointerEvent): void => {
     if (gesture !== null) {
       controls.enabled = true;
@@ -157,6 +199,7 @@ export function createViewport(
     }
     downAt = null;
     moved = false;
+    clearRingHover();
   };
 
   const onPointerDown = (event: PointerEvent): void => {
@@ -182,6 +225,7 @@ export function createViewport(
           totalDeltaDeg: 0,
         };
         controls.enabled = false;
+        renderer.domElement.style.cursor = 'grabbing';
         designCallbacks.onBeginRotate(ring.placedId);
         try {
           renderer.domElement.setPointerCapture(event.pointerId);
@@ -236,7 +280,11 @@ export function createViewport(
         moved = true;
       }
     }
-    if (gesture === null || !moved || designCallbacks === undefined) {
+    if (gesture === null) {
+      updateRingHover(event);
+      return;
+    }
+    if (!moved || designCallbacks === undefined) {
       return;
     }
     if (gesture.kind === 'ring') {
@@ -247,12 +295,14 @@ export function createViewport(
       }
       gesture.totalDeltaDeg += unwrapAngleDelta(gesture.lastAngleDeg, angle);
       gesture.lastAngleDeg = angle;
+      // Ring drags snap to the panel's step, from where the drag
+      // started; holding Alt drags freely without snapping.
+      const rawDelta = gesture.totalDeltaDeg * RING_ANGLE_SIGNS[gesture.axis];
+      const snappedDelta = event.altKey ? rawDelta : snapDeltaDeg(rawDelta, rotateStep);
       designCallbacks.onRotatePiece(
         gesture.placedId,
         gesture.axis,
-        normalizeAngleDeg(
-          gesture.startRotationDeg + gesture.totalDeltaDeg * RING_ANGLE_SIGNS[gesture.axis],
-        ),
+        normalizeAngleDeg(gesture.startRotationDeg + snappedDelta),
       );
       return;
     }
@@ -291,6 +341,7 @@ export function createViewport(
     gesture = null;
     downAt = null;
     moved = false;
+    clearRingHover();
   };
 
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
@@ -374,6 +425,12 @@ export function createViewport(
     },
     setSelectionMode(mode: SelectionMode): void {
       selectionMode = mode;
+      // Rings only show in Rotate mode — in Move mode a ring grab
+      // would silently rotate a piece the user was trying to move.
+      designScene.setRingsEnabled(mode === 'rotate');
+    },
+    setRotateStep(step: number): void {
+      rotateStep = step;
     },
     dispose(): void {
       disposed = true;
