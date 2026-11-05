@@ -21,9 +21,19 @@ interface ShapesPanelProps {
   onImport: (file: File, category: PieceCategory, colourHex: string) => void;
   importing: boolean;
   importError: string | null;
+  /** Place a Ready piece on the workplane (Milestone 3). */
+  onPlace: (libraryId: string) => void;
 }
 
-function PieceEntry({ piece }: { piece: LibraryPiece }) {
+function sizeLabel(piece: LibraryPiece): string {
+  if (piece.sizeMm === null) {
+    return '';
+  }
+  const { x, y, z } = piece.sizeMm;
+  return ` Size as imported: ${x.toFixed(1)} × ${y.toFixed(1)} × ${z.toFixed(1)} mm.`;
+}
+
+function PieceEntry({ piece, onPlace }: { piece: LibraryPiece; onPlace: (id: string) => void }) {
   const ready = isPieceReady(piece);
   const status = ready
     ? piece.standIn !== undefined
@@ -37,7 +47,7 @@ function PieceEntry({ piece }: { piece: LibraryPiece }) {
     : 'library-status-needed';
   const title = ready
     ? piece.standIn !== undefined
-      ? 'Temporary stand-in STL — real piece STL still needed.'
+      ? `Temporary stand-in STL — real piece STL still needed.${sizeLabel(piece)}`
       : undefined
     : piece.standIn !== undefined
       ? 'Temporary stand-in STL loading — use Import Pieces above to try another file.'
@@ -52,6 +62,21 @@ function PieceEntry({ piece }: { piece: LibraryPiece }) {
       <span className="library-name">{piece.name}</span>
       <span className="library-holes">{holeCountLabel(piece)}</span>
       <span className={`library-status ${statusClass}`}>{status}</span>
+      <button
+        type="button"
+        className="library-place"
+        disabled={!ready}
+        title={
+          ready
+            ? `Place ${piece.name} on the workplane`
+            : 'No STL yet — this piece cannot be placed'
+        }
+        onClick={() => {
+          onPlace(piece.id);
+        }}
+      >
+        Place
+      </button>
     </li>
   );
 }
@@ -61,6 +86,7 @@ export default function ShapesPanel({
   onImport,
   importing,
   importError,
+  onPlace,
 }: ShapesPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<ReadonlySet<PieceCategory>>(
@@ -127,7 +153,7 @@ export default function ShapesPanel({
                   {!sectionCollapsed && (
                     <ul className="library-list">
                       {sectionPieces.map((piece) => (
-                        <PieceEntry key={piece.id} piece={piece} />
+                        <PieceEntry key={piece.id} piece={piece} onPlace={onPlace} />
                       ))}
                     </ul>
                   )}
