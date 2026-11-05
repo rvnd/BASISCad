@@ -115,6 +115,146 @@ body {
   color: var(--text-muted);
 }
 
+/* Library — colour swatches (never fake thumbnails), hole counts, and
+   an honest status per piece. */
+.library-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eeeeee;
+}
+
+.library-section-header {
+  margin-bottom: 8px;
+}
+
+.library-section-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.library-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.library-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 13px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.library-entry:last-child {
+  border-bottom: none;
+}
+
+.library-swatch {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 1px solid #999999;
+  border-radius: 3px;
+}
+
+.library-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-holes {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.library-status {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 3px;
+}
+
+.library-status-needed {
+  color: #8a5a00;
+  background: #fff3cd;
+}
+
+.library-status-ready {
+  color: #1e6b34;
+  background: #d9f2e2;
+}
+
+/* Import Pieces — file picker plus category/colour choices. */
+.import-pieces {
+  margin-bottom: 4px;
+}
+
+.import-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.import-row {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.import-field {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.import-field select {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--brand-black);
+  background: var(--brand-white);
+  border: 1px solid #cccccc;
+  border-radius: 4px;
+}
+
+.import-file-button {
+  display: block;
+  padding: 8px 10px;
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--brand-white);
+  border: 1px solid #cccccc;
+  border-radius: 4px;
+}
+
+.import-file-button:hover {
+  border-color: var(--brand-red);
+}
+
+.import-file-input {
+  display: none;
+}
+
+.import-error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--brand-red);
+}
+
 /* View controls — full-width buttons, same size in the dropdown list. */
 .control-button {
   display: block;
