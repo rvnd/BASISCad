@@ -25,11 +25,25 @@ interface ShapesPanelProps {
 
 function PieceEntry({ piece }: { piece: LibraryPiece }) {
   const ready = isPieceReady(piece);
+  const status = ready
+    ? piece.standIn !== undefined
+      ? 'Temporary stand-in'
+      : 'Ready'
+    : 'STL needed';
+  const statusClass = ready
+    ? piece.standIn !== undefined
+      ? 'library-status-standin'
+      : 'library-status-ready'
+    : 'library-status-needed';
+  const title = ready
+    ? piece.standIn !== undefined
+      ? 'Temporary stand-in STL — real piece STL still needed.'
+      : undefined
+    : piece.standIn !== undefined
+      ? 'Temporary stand-in STL loading — use Import Pieces above to try another file.'
+      : 'STL not imported yet — use Import Pieces above.';
   return (
-    <li
-      className="library-entry"
-      title={ready ? undefined : 'STL not imported yet — use Import Pieces above.'}
-    >
+    <li className="library-entry" title={title}>
       <span
         className="library-swatch"
         style={{ backgroundColor: piece.colourHex }}
@@ -37,11 +51,7 @@ function PieceEntry({ piece }: { piece: LibraryPiece }) {
       />
       <span className="library-name">{piece.name}</span>
       <span className="library-holes">{holeCountLabel(piece)}</span>
-      <span
-        className={`library-status ${ready ? 'library-status-ready' : 'library-status-needed'}`}
-      >
-        {ready ? 'Ready' : 'STL needed'}
-      </span>
+      <span className={`library-status ${statusClass}`}>{status}</span>
     </li>
   );
 }
@@ -125,8 +135,9 @@ export default function ShapesPanel({
               );
             })}
             <p className="panel-note">
-              The 17 pieces above need their STL files before they can be placed. Import one to try
-              it.
+              The 17 pieces above need their STL files before they can be placed. Three of them have
+              a temporary stand-in STL for now (1x6 Girder, 2x2 Panel, L-Brace) — the real piece
+              STLs are still needed.
             </p>
           </>
         )}

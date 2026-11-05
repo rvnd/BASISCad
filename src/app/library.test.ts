@@ -6,6 +6,7 @@ import {
   isPieceReady,
   missingStlPieces,
   piecesInCategory,
+  standInPieces,
 } from './library';
 
 describe('library', () => {
@@ -43,12 +44,25 @@ describe('library', () => {
     }
   });
 
-  it('records the 1x4 girder size and leaves every other size unknown', () => {
+  it('records the 1x4 girder size and leaves sizes unknown except for the stand-ins', () => {
     const girder1x4 = SPEC_PIECES.find((piece) => piece.id === 'girder-1x4');
     expect(girder1x4?.sizeMm).toEqual({ x: 50.95, y: 3.175, z: 12.7 });
-    for (const piece of SPEC_PIECES.filter((entry) => entry.id !== 'girder-1x4')) {
-      expect(piece.sizeMm).toBeNull();
+    const withSize = SPEC_PIECES.filter((piece) => piece.sizeMm !== null).map((piece) => piece.id);
+    // The 1x4 (spec) plus the three temporary stand-ins, whose sizes
+    // are recorded as imported.
+    expect(withSize).toEqual(['girder-1x4', 'girder-1x6', 'brace-l', 'plate-2x2']);
+  });
+
+  it('has three temporary stand-ins, all CC0, all still missing their real STL', () => {
+    const standIns = standInPieces();
+    expect(standIns.map((piece) => piece.id)).toEqual(['girder-1x6', 'brace-l', 'plate-2x2']);
+    for (const piece of standIns) {
+      expect(piece.standIn?.licence).toBe('CC0 1.0');
+      expect(piece.standIn?.file).toMatch(/^library\/.*\.stl$/);
+      expect(piece.geometryId).toBeNull();
+      expect(isPieceReady(piece)).toBe(false);
     }
+    expect(missingStlPieces()).toHaveLength(17);
   });
 
   it('marks all 17 spec pieces as missing their STL', () => {

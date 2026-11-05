@@ -1,12 +1,12 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Header from './components/Header.tsx';
 import ShapesPanel from './components/ShapesPanel.tsx';
 import ViewControls from './components/ViewControls.tsx';
 import Viewport from './components/Viewport.tsx';
-import { PIECE_COLOURS, SPEC_PIECES } from './app/library';
+import { PIECE_COLOURS, SPEC_PIECES, standInPieces } from './app/library';
 import type { LibraryPiece, PieceCategory } from './app/library';
 import { registerGeometry } from './three/libraryGeometry';
-import { loadPieceGeometry } from './three/loadPieceFile';
+import { loadPieceGeometry, loadPieceGeometryFromUrl } from './three/loadPieceFile';
 import { DEFAULT_CAMERA_VIEW_ID } from './three/cameraViews';
 import type { CameraViewId } from './three/cameraViews';
 import type { ViewportHandle } from './three/viewport';
@@ -36,6 +36,40 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const importCounter = useRef(0);
+  // The spec pieces, with stand-in geometry attached once it loads.
+  const [specPieces, setSpecPieces] = useState<readonly LibraryPiece[]>(SPEC_PIECES);
+
+  // Load the bundled temporary stand-in STLs (see
+  // public/library/LIBRARY_SOURCES.md). A stand-in that fails to load
+  // simply leaves its piece marked "STL needed".
+  useEffect(() => {
+    let cancelled = false;
+    for (const piece of standInPieces()) {
+      if (piece.standIn === undefined) {
+        continue;
+      }
+      const standIn = piece.standIn;
+      const geometryId = `standin-${piece.id}`;
+      loadPieceGeometryFromUrl(`${import.meta.env.BASE_URL}${standIn.file}`)
+        .then((loaded) => {
+          if (cancelled) {
+            return;
+          }
+          registerGeometry(geometryId, loaded.geometry);
+          setSpecPieces((previous) =>
+            previous.map((entry) =>
+              entry.id === piece.id ? { ...entry, geometryId, sizeMm: loaded.sizeMm } : entry,
+            ),
+          );
+        })
+        .catch(() => {
+          // Stand-in failed to load; the piece stays "STL needed".
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onViewportReady = useCallback((handle: ViewportHandle | null) => {
     viewportRef.current = handle;
@@ -84,7 +118,7 @@ export default function App() {
       });
   }, []);
 
-  const libraryPieces: readonly LibraryPiece[] = [...SPEC_PIECES, ...importedPieces];
+  const libraryPieces: readonly LibraryPiece[] = [...specPieces, ...importedPieces];
 
   return (
     <div className="app">
