@@ -45,9 +45,9 @@ export interface PlacedPiece {
 /**
  * Selection mode for the current selection. 'move' drags a piece
  * across the workplane; 'rotate' drags it around the vertical axis
- * instead, and shows the rotation rings. The mode is the user's
+ * instead, and shows the rotation handles. The mode is the user's
  * choice: selecting a piece keeps the current mode (and the piece's
- * rotation); only the panel toggle and grabbing a ring change it.
+ * rotation); only the panel toggle and grabbing a handle change it.
  */
 export type SelectionMode = 'move' | 'rotate';
 

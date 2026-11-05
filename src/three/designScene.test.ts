@@ -124,7 +124,7 @@ describe('designScene', () => {
     design.dispose();
   });
 
-  it('shows the rotation rings only for a single selected piece in Rotate mode', () => {
+  it('shows the rotation handles only for a single selected piece in Rotate mode', () => {
     const scene = new THREE.Scene();
     const design = createDesignScene(scene);
     registerGeometry('test-box-6', testBox(50, 3, 12));
@@ -133,17 +133,71 @@ describe('designScene', () => {
       createPlacedPiece('p1', 'girder-1x4', 0, small),
       createPlacedPiece('p2', 'girder-1x4', 1, small),
     ];
-    // Move mode (the default): no rings, even for a single selection.
+    // Move mode (the default): no handles, even for a single selection.
     design.sync(placed, library, ['p1']);
-    expect(scene.getObjectByName('rotation-rings')?.visible).toBe(false);
-    // Rotate mode: rings show for one piece, not for two or none.
-    design.setRingsEnabled(true);
+    expect(scene.getObjectByName('rotation-handles')?.visible).toBe(false);
+    // Rotate mode: handles show for one piece, not for two or none.
+    design.setHandlesEnabled(true);
     design.sync(placed, library, ['p1']);
-    expect(scene.getObjectByName('rotation-rings')?.visible).toBe(true);
+    expect(scene.getObjectByName('rotation-handles')?.visible).toBe(true);
     design.sync(placed, library, ['p1', 'p2']);
-    expect(scene.getObjectByName('rotation-rings')?.visible).toBe(false);
+    expect(scene.getObjectByName('rotation-handles')?.visible).toBe(false);
     design.sync(placed, library, []);
-    expect(scene.getObjectByName('rotation-rings')?.visible).toBe(false);
+    expect(scene.getObjectByName('rotation-handles')?.visible).toBe(false);
+    design.dispose();
+  });
+
+  it('shows the handles the moment Rotate mode is entered, without another sync', () => {
+    const scene = new THREE.Scene();
+    const design = createDesignScene(scene);
+    registerGeometry('test-box-7', testBox(50, 3, 12));
+    const library = [libraryPiece('girder-1x4', 'test-box-7')];
+    const placed = [createPlacedPiece('p1', 'girder-1x4', 0, small)];
+    // Sync once in Move mode: no handles.
+    design.sync(placed, library, ['p1']);
+    expect(scene.getObjectByName('rotation-handles')?.visible).toBe(false);
+    // Enter Rotate mode with no further sync: the handles must appear
+    // at once. (The old ring code only re-ran on sync, so the rings
+    // stayed hidden until the piece was dragged once.)
+    design.setHandlesEnabled(true);
+    expect(scene.getObjectByName('rotation-handles')?.visible).toBe(true);
+    // Leaving Rotate mode hides them again, also with no sync.
+    design.setHandlesEnabled(false);
+    expect(scene.getObjectByName('rotation-handles')?.visible).toBe(false);
+    design.dispose();
+  });
+
+  it('maps each handle knob to its own axis only', () => {
+    const scene = new THREE.Scene();
+    const design = createDesignScene(scene);
+    registerGeometry('test-box-8', testBox(50, 3, 12));
+    const library = [libraryPiece('girder-1x4', 'test-box-8')];
+    const placed = [createPlacedPiece('p1', 'girder-1x4', 0, small)];
+    design.setHandlesEnabled(true);
+    design.sync(placed, library, ['p1']);
+    const handles = scene.getObjectByName('rotation-handles');
+    expect(handles?.visible).toBe(true);
+    const centre = handles?.position.clone() ?? new THREE.Vector3();
+    const camera = new THREE.PerspectiveCamera(50, 1, 1, 5000);
+    camera.position.set(centre.x + 700, centre.y + 700, centre.z + 700);
+    camera.lookAt(centre);
+    scene.updateMatrixWorld(true);
+    camera.updateMatrixWorld();
+    // Aim a pointer ray at each knob and check the hit is that knob's
+    // axis — grabbing the red handle must only ever rotate about X,
+    // and likewise for green/Y and blue/Z.
+    for (const axis of ['x', 'y', 'z'] as const) {
+      const knob = scene.getObjectByName(`rotation-handle-knob-${axis}`);
+      expect(knob).toBeDefined();
+      const world = new THREE.Vector3();
+      knob?.getWorldPosition(world);
+      const ndc = world.clone().project(camera);
+      const hit = design.handleHit(ndc.x, ndc.y, camera);
+      expect(hit?.placedId).toBe('p1');
+      expect(hit?.axis).toBe(axis);
+    }
+    // Pointing at empty space near the piece grabs no handle.
+    expect(design.handleHit(0.9, 0.9, camera)).toBeNull();
     design.dispose();
   });
 });

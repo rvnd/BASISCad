@@ -659,14 +659,14 @@ body {
   vertical-align: baseline;
 }
 
-/* Ring colour legend and hover hint in the Move/Rotate panel. */
-.ring-legend {
+/* Handle colour legend and hover hint in the Move/Rotate panel. */
+.handle-legend {
   margin: 2px 0 10px;
   font-size: 12px;
   color: var(--text-muted);
 }
 
-.ring-hover-note {
+.handle-hover-note {
   margin: 2px 0 6px;
   font-size: 13px;
   font-weight: 700;

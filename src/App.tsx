@@ -24,7 +24,7 @@ import { loadPieceGeometry, loadPieceGeometryFromUrl } from './three/loadPieceFi
 import { DEFAULT_CAMERA_VIEW_ID } from './three/cameraViews';
 import type { CameraViewId } from './three/cameraViews';
 import type { ViewportDesignCallbacks, ViewportHandle } from './three/viewport';
-import type { RotationAxis } from './three/rotationRings';
+import type { RotationAxis } from './three/rotationHandles';
 
 /**
  * App shell — composition and view state only, no 3D logic.
@@ -64,8 +64,8 @@ export default function App() {
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('move');
   // Milestone 4: the quick-rotate step size for the panel buttons.
   const [rotateStep, setRotateStep] = useState(45);
-  // Milestone 4 fix: the rotation ring the pointer currently hovers.
-  const [ringHover, setRingHover] = useState<RotationAxis | null>(null);
+  // Milestone 4: the rotation handle the pointer currently hovers.
+  const [handleHover, setHandleHover] = useState<RotationAxis | null>(null);
   const placedCounter = useRef(0);
 
   // Load the bundled temporary stand-in STLs (see
@@ -159,20 +159,17 @@ export default function App() {
     libraryByIdRef.current = new Map(libraryPieces.map((piece) => [piece.id, piece]));
   }, [libraryPieces]);
 
-  // Keep the 3D scene in sync with the design data.
+  // Keep the 3D scene in sync with the design data. The selection
+  // mode is a dependency too: entering Rotate mode must show the
+  // rotation handles at once, not on the next design change.
   useEffect(() => {
     viewportRef.current?.syncDesign(placed, libraryPieces, selectedIds);
-  }, [placed, libraryPieces, selectedIds, viewportReady]);
+  }, [placed, libraryPieces, selectedIds, selectionMode, viewportReady]);
 
   // Keep the viewport's drag behaviour in step with the selection mode.
   useEffect(() => {
     viewportRef.current?.setSelectionMode(selectionMode);
   }, [selectionMode, viewportReady]);
-
-  // Keep the viewport's ring-drag snapping in step with the panel step.
-  useEffect(() => {
-    viewportRef.current?.setRotateStep(rotateStep);
-  }, [rotateStep, viewportReady]);
 
   const sizeById: ReadonlyMap<string, PieceSizeMm> = useMemo(() => {
     const map = new Map<string, PieceSizeMm>();
@@ -215,11 +212,11 @@ export default function App() {
         setPlaced((previous) => setPiecesRotation(previous, [placedId], axis, angleDeg));
       },
       onBeginRotate(): void {
-        // Grabbing a ring switches the selection to Rotate mode.
+        // Grabbing a handle switches the selection to Rotate mode.
         setSelectionMode('rotate');
       },
-      onRingHover(axis: RotationAxis | null): void {
-        setRingHover(axis);
+      onHandleHover(axis: RotationAxis | null): void {
+        setHandleHover(axis);
       },
     }),
     [],
@@ -350,7 +347,7 @@ export default function App() {
             selectedCount={selectedIds.length}
             mode={selectionMode}
             step={rotateStep}
-            hoverAxis={ringHover}
+            hoverAxis={handleHover}
             onSetMode={setSelectionMode}
             onSetStep={setRotateStep}
             onMove={moveSelected}
