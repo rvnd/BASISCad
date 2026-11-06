@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   HANDLE_ARC_DEG,
+  HANDLE_AXIS_COLOURS,
   createProtractor,
   createRotationHandles,
   handleAngleDeg,
   handlePoint,
   handleTangent,
   hideProtractor,
+  rotationHandleRadius,
   setHandleHover,
   showProtractor,
   snapDragDeltaDeg,
@@ -87,6 +89,10 @@ describe('createRotationHandles', () => {
       const label = group.getObjectByName(`rotation-handle-label-${axis}`);
       expect(label).toBeDefined();
       expect(label).toBeInstanceOf(THREE.Sprite);
+      const labelMaterial = (label as THREE.Sprite).material;
+      expect(labelMaterial.transparent).toBe(true);
+      expect(labelMaterial.opacity).toBe(1);
+      expect(labelMaterial.depthWrite).toBe(true);
       // The label sits just outside the arc, past the knob.
       expect(label?.position.length()).toBeGreaterThan(1);
       // The arrowhead is clearly wider than the thin arc tube, so it
@@ -110,22 +116,48 @@ describe('createRotationHandles', () => {
   });
 });
 
+describe('rotationHandleRadius', () => {
+  it('keeps the inside of the knob at least 24 mm beyond the piece radius', () => {
+    for (const pieceRadiusMm of [0, 50, 250]) {
+      const arcRadius = rotationHandleRadius(pieceRadiusMm);
+      const knobInnerRadius = arcRadius * 0.9;
+      expect(knobInnerRadius - pieceRadiusMm).toBeCloseTo(24, 6);
+    }
+  });
+});
+
 describe('setHandleHover', () => {
-  it('brightens and enlarges only the hovered handle, and clears on null', () => {
+  it('fades handles until hovered, then brightens them and restores the idle fade on null', () => {
     const group = createRotationHandles();
     const knobX = group.getObjectByName('rotation-handle-knob-x');
     const knobY = group.getObjectByName('rotation-handle-knob-y');
+    const labelX = group.getObjectByName('rotation-handle-label-x') as THREE.Sprite;
     const arcX = group.getObjectByName('rotation-handle-arc-x') as THREE.Mesh;
+    const arrowX = group.getObjectByName('rotation-handle-arrow-x') as THREE.Mesh;
+    const knobMaterial = (knobX as THREE.Mesh).material as THREE.MeshBasicMaterial;
+    const arrowMaterial = arrowX.material as THREE.MeshBasicMaterial;
     const material = arcX.material as THREE.MeshBasicMaterial;
-    const baseRed = material.color.r;
+    const labelMaterial = labelX.material;
+    const baseColour = new THREE.Color(HANDLE_AXIS_COLOURS.x);
+    expect(material.transparent).toBe(false);
+    expect(material.color.equals(baseColour)).toBe(false);
+    expect(arrowMaterial.color.equals(material.color)).toBe(true);
+    expect(knobMaterial.color.equals(material.color)).toBe(true);
+    expect(material.opacity).toBe(1);
+    expect(arrowMaterial.opacity).toBe(1);
+    expect(knobMaterial.opacity).toBe(1);
+    expect(labelMaterial.opacity).toBe(1);
     setHandleHover(group, 'x');
     expect(knobX?.scale.x).toBeCloseTo(1.5, 6);
     expect(knobY?.scale.x).toBeCloseTo(1, 6);
-    // Lightened towards white: the red channel is brighter than the base red.
-    expect(material.color.r).toBeGreaterThan(baseRed);
+    expect(material.opacity).toBe(1);
+    expect(arrowMaterial.opacity).toBe(1);
+    expect(knobMaterial.opacity).toBe(1);
+    expect(labelMaterial.opacity).toBe(1);
+    expect(material.color.equals(baseColour)).toBe(true);
     setHandleHover(group, null);
     expect(knobX?.scale.x).toBeCloseTo(1, 6);
-    expect(material.color.r).toBeCloseTo(baseRed, 6);
+    expect(material.color.equals(baseColour)).toBe(false);
   });
 });
 

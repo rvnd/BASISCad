@@ -4,6 +4,7 @@ import { createPlacedPiece } from '../app/design';
 import type { LibraryPiece } from '../app/library';
 import { createDesignScene } from './designScene';
 import { registerGeometry } from './libraryGeometry';
+import { rotationHandleRadius } from './rotationHandles';
 
 const small = { x: 50, y: 3, z: 12 };
 
@@ -170,13 +171,19 @@ describe('designScene', () => {
   it('maps each handle knob to its own axis only', () => {
     const scene = new THREE.Scene();
     const design = createDesignScene(scene);
-    registerGeometry('test-box-8', testBox(50, 3, 12));
+    const geometry = testBox(50, 3, 12);
+    registerGeometry('test-box-8', geometry);
     const library = [libraryPiece('girder-1x4', 'test-box-8')];
     const placed = [createPlacedPiece('p1', 'girder-1x4', 0, small)];
     design.setHandlesEnabled(true);
     design.sync(placed, library, ['p1']);
     const handles = scene.getObjectByName('rotation-handles');
     expect(handles?.visible).toBe(true);
+    geometry.computeBoundingSphere();
+    expect(handles?.scale.x).toBeCloseTo(
+      rotationHandleRadius(geometry.boundingSphere?.radius ?? 0),
+      6,
+    );
     const centre = handles?.position.clone() ?? new THREE.Vector3();
     const camera = new THREE.PerspectiveCamera(50, 1, 1, 5000);
     camera.position.set(centre.x + 700, centre.y + 700, centre.z + 700);

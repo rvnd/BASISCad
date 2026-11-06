@@ -9,6 +9,7 @@ import {
   disposeRotationHandles,
   handleAngleDeg,
   hideProtractor,
+  rotationHandleRadius,
   setHandleHover,
   showProtractor,
   updateProtractorAngle,
@@ -199,7 +200,10 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
   const protractor = createProtractor();
   scene.add(protractor);
   let handleCentre: THREE.Vector3 | null = null;
+  // Visual handle radius is intentionally larger than the protractor
+  // radius. Keeping them separate preserves the existing drag snap feel.
   let handleRadius = 0;
+  let protractorRadius = 0;
   let handlePlacedId: string | null = null;
   // Handles only show in Rotate mode: in Move mode a handle grab would
   // silently rotate a piece the user was trying to move.
@@ -217,6 +221,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
   const updateHandles = (): void => {
     handleCentre = null;
     handleRadius = 0;
+    protractorRadius = 0;
     handlePlacedId = null;
     const libraryById = new Map(lastLibrary.map((piece) => [piece.id, piece]));
     if (handlesEnabled && lastSelectedIds.length === 1) {
@@ -241,7 +246,8 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         selectedGeometry.computeBoundingSphere();
         const sphere = selectedGeometry.boundingSphere;
         handleCentre = centre;
-        handleRadius = (sphere?.radius ?? 0) + 14;
+        protractorRadius = (sphere?.radius ?? 0) + 14;
+        handleRadius = rotationHandleRadius(sphere?.radius ?? 0);
         handlePlacedId = selectedId ?? null;
       }
     }
@@ -397,7 +403,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
           axis,
           angleDeg: onPlane.angleDeg,
           radialMm: onPlane.radialMm,
-          radiusMm: handleRadius,
+          radiusMm: protractorRadius,
         };
       }
       return null;
@@ -417,7 +423,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       if (onPlane === null) {
         return null;
       }
-      return { ...onPlane, radiusMm: handleRadius };
+      return { ...onPlane, radiusMm: protractorRadius };
     },
 
     setHandlesEnabled(enabled: boolean): void {
@@ -435,12 +441,12 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
     },
 
     setProtractor(axis: RotationAxis | null, angleDeg: number): void {
-      if (axis === null || handleCentre === null || handleRadius <= 0) {
+      if (axis === null || handleCentre === null || protractorRadius <= 0) {
         hideProtractor(protractor);
         return;
       }
       if (!protractor.visible) {
-        showProtractor(protractor, axis, handleCentre, handleRadius, angleDeg);
+        showProtractor(protractor, axis, handleCentre, protractorRadius, angleDeg);
         return;
       }
       updateProtractorAngle(protractor, axis, angleDeg);

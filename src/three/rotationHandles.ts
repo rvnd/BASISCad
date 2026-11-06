@@ -40,6 +40,9 @@ export type RotationAxis = 'x' | 'y' | 'z';
 
 export const HANDLE_AXES: readonly RotationAxis[] = ['x', 'y', 'z'];
 
+/** Idle handles recede visually without alpha blending at intersections. */
+const IDLE_TINT_AMOUNT = 0.7;
+
 /** Axis colours, matching the workplane axes. */
 export const HANDLE_AXIS_COLOURS: Record<RotationAxis, number> = {
   x: 0xd03f43,
@@ -166,6 +169,15 @@ export function handleTangent(axis: RotationAxis, angleDeg: number): THREE.Vecto
 /** How far out from the handle, in handle radii, a label sprite sits. */
 const LABEL_RADIUS = 1.28;
 
+/** Keep idle handle geometry solid so intersecting parts do not double-blend. */
+function idleAxisColour(colour: THREE.Color): THREE.Color {
+  return colour.clone().lerp(new THREE.Color(0xffffff), IDLE_TINT_AMOUNT);
+}
+
+function idleAxisHex(colour: THREE.Color): string {
+  return `#${idleAxisColour(colour).getHexString()}`;
+}
+
 /** Arc tube, knob, and arrowhead sizes, in handle radii (the group is scaled by the handle radius). */
 /* Thin arc, with an arrowhead that stands out clearly against it:
 // the arrow is ~4x the tube radius wide, so it reads as an arrow
@@ -177,8 +189,37 @@ const ARROW_RADIUS = 0.09;
 const ARROW_HEIGHT = 0.24;
 const LABEL_SIZE = 0.36;
 
+/** Extra visible gap between a piece and the inside edge of a rotation knob. */
+export const ROTATION_HANDLE_CLEARANCE_MM = 24;
+
+/** Arc radius that leaves the requested gap after accounting for the knob size. */
+export function rotationHandleRadius(pieceRadiusMm: number): number {
+  return (Math.max(0, pieceRadiusMm) + ROTATION_HANDLE_CLEARANCE_MM) / (1 - KNOB_RADIUS);
+}
+
+/** Draw the axis letter on a white disc with a coloured rim. */
+function drawAxisLabel(canvas: HTMLCanvasElement, axis: RotationAxis, colourHex: string): void {
+  const context = canvas.getContext('2d');
+  if (context === null) {
+    throw new Error('Could not draw the rotation handle label.');
+  }
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.beginPath();
+  context.arc(64, 64, 56, 0, Math.PI * 2);
+  context.fillStyle = '#ffffff';
+  context.fill();
+  context.lineWidth = 10;
+  context.strokeStyle = colourHex;
+  context.stroke();
+  context.fillStyle = colourHex;
+  context.font = 'bold 64px Arial, sans-serif';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(axis.toUpperCase(), 64, 68);
+}
+
 /** A label sprite: the axis letter on a white disc with a coloured rim. */
-function createAxisLabelSprite(axis: RotationAxis): THREE.Sprite {
+function createAxisLabelSprite(axis: RotationAxis, baseColour: THREE.Color): THREE.Sprite {
   // Vitest runs in node, where there is no document: build the sprite
   // with a plain material there (tests check its name and position,
   // not its pixels); in the browser the canvas letter is drawn.
@@ -194,28 +235,20 @@ function createAxisLabelSprite(axis: RotationAxis): THREE.Sprite {
   const canvas = document.createElement('canvas');
   canvas.width = 128;
   canvas.height = 128;
-  const context = canvas.getContext('2d');
-  if (context === null) {
-    throw new Error('Could not draw the rotation handle label.');
-  }
-  const hex = HANDLE_AXIS_HEX[axis];
-  context.beginPath();
-  context.arc(64, 64, 56, 0, Math.PI * 2);
-  context.fillStyle = '#ffffff';
-  context.fill();
-  context.lineWidth = 10;
-  context.strokeStyle = hex;
-  context.stroke();
-  context.fillStyle = hex;
-  context.font = 'bold 64px Arial, sans-serif';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(axis.toUpperCase(), 64, 68);
+  drawAxisLabel(canvas, axis, idleAxisHex(baseColour));
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  const material = new THREE.SpriteMaterial({ map: texture, depthTest: true });
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 1,
+    depthTest: true,
+    depthWrite: true,
+    alphaTest: 0.01,
+  });
   const sprite = new THREE.Sprite(material);
   sprite.name = `rotation-handle-label-${axis}`;
+  sprite.userData.labelCanvas = canvas;
   sprite.scale.setScalar(LABEL_SIZE);
   sprite.position.copy(handlePoint(axis, mid)).multiplyScalar(LABEL_RADIUS);
   return sprite;
@@ -242,13 +275,9 @@ interface HandleParts {
   knob: THREE.Mesh;
   label: THREE.Sprite;
   baseColour: THREE.Color;
+  idleColour: THREE.Color;
   baseKnobScale: number;
   baseLabelScale: number;
-}
-
-/** Lighten a colour towards white, for the hovered handle. */
-function lightenColour(colour: THREE.Color, amount: number): THREE.Color {
-  return colour.clone().lerp(new THREE.Color(0xffffff), amount);
 }
 
 /**
@@ -267,8 +296,9 @@ export function createRotationHandles(): THREE.Group {
   const parts: Partial<Record<RotationAxis, HandleParts>> = {};
   for (const axis of HANDLE_AXES) {
     const baseColour = new THREE.Color(HANDLE_AXIS_COLOURS[axis]);
+    const idleColour = idleAxisColour(baseColour);
     const material = (): THREE.MeshBasicMaterial =>
-      new THREE.MeshBasicMaterial({ color: baseColour.clone() });
+      new THREE.MeshBasicMaterial({ color: idleColour });
     const sub = new THREE.Group();
     sub.name = `rotation-handle-${axis}`;
     sub.userData.handleAxis = axis;
@@ -310,7 +340,7 @@ export function createRotationHandles(): THREE.Group {
     knob.position.copy(handlePoint(axis, start));
     sub.add(knob);
 
-    const label = createAxisLabelSprite(axis);
+    const label = createAxisLabelSprite(axis, baseColour);
     label.userData.handleAxis = axis;
     sub.add(label);
 
@@ -321,6 +351,7 @@ export function createRotationHandles(): THREE.Group {
       knob,
       label,
       baseColour,
+      idleColour,
       baseKnobScale: 1,
       baseLabelScale: LABEL_SIZE,
     };
@@ -339,8 +370,8 @@ function handlePartsOf(group: THREE.Group): Partial<Record<RotationAxis, HandleP
 /**
  * Highlight one handle (and its knob and label) while the pointer
  * hovers it, and restore the others. Pass null to clear the highlight.
- * The hovered handle brightens towards white, its knob grows, and its
- * label grows — the other two handles are left exactly as they were.
+ * Idle handles use solid softened colours; the hovered one returns to
+ * its saturated axis colour and grows its knob and label.
  */
 export function setHandleHover(group: THREE.Group, axis: RotationAxis | null): void {
   for (const entry of HANDLE_AXES) {
@@ -352,7 +383,19 @@ export function setHandleHover(group: THREE.Group, axis: RotationAxis | null): v
     for (const mesh of [parts.arc, parts.arrowhead, parts.knob]) {
       const meshMaterial = mesh.material;
       if (meshMaterial instanceof THREE.MeshBasicMaterial) {
-        meshMaterial.color.copy(hovered ? lightenColour(parts.baseColour, 0.45) : parts.baseColour);
+        meshMaterial.color.copy(hovered ? parts.baseColour : parts.idleColour);
+      }
+    }
+    const labelCanvas = parts.label.userData.labelCanvas as HTMLCanvasElement | undefined;
+    if (labelCanvas !== undefined) {
+      drawAxisLabel(
+        labelCanvas,
+        entry,
+        hovered ? HANDLE_AXIS_HEX[entry] : idleAxisHex(parts.baseColour),
+      );
+      const texture = parts.label.material.map;
+      if (texture !== null) {
+        texture.needsUpdate = true;
       }
     }
     parts.knob.scale.setScalar(hovered ? 1.5 : parts.baseKnobScale);

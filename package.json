@@ -5,6 +5,7 @@
     "three": "^0.187.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -25,7 +26,8 @@
     "format:write": "prettier --write .",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run --exclude=e2e/**",
+    "test:e2e": "playwright test",
     "typecheck": "tsc -b"
   },
   "type": "module",
