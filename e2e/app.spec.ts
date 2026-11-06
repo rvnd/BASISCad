@@ -39,6 +39,19 @@ test('places and removes a library piece', async ({ page }) => {
   ).toBeVisible();
 });
 
+test('hole snapping can be toggled and Alt is documented as the free-move modifier', async ({
+  page,
+}) => {
+  await page.goto('./');
+  await startDesign(page);
+  const snapToggle = page.getByRole('checkbox', { name: 'Snap holes' });
+  await expect(snapToggle).toBeChecked();
+  await expect(page.getByText('Hold Alt while dragging to move freely.')).toBeVisible();
+  await snapToggle.uncheck();
+  await expect(snapToggle).not.toBeChecked();
+  await snapToggle.check();
+});
+
 test('rotates a piece from the X handle and updates the live angle', async ({ page }) => {
   await page.goto('./');
   await startDesign(page);

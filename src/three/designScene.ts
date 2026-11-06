@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type { PlacedPiece, RotationDeg } from '../app/design';
 import type { LibraryPiece } from '../app/library';
 import { getGeometry } from './libraryGeometry';
+import { findVerticalThroughHoles, snapToAlignedHole } from './holeSnapping';
+import type { HolePoint, HoleSnapResult } from './holeSnapping';
 import { createPieceMesh, disposePieceMesh } from './pieces';
 import {
   createProtractor,
@@ -49,6 +51,7 @@ export interface DesignScene {
     library: readonly LibraryPiece[],
     selectedIds: readonly string[],
   ): void;
+  snapPosition(placedId: string, x: number, z: number): HoleSnapResult;
   /** The placed id under the pointer, or null. */
   pick(ndcX: number, ndcY: number, camera: THREE.Camera): string | null;
   /** The centre of a placed piece on the workplane, or null when it is not in the scene. */
@@ -190,6 +193,15 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
   group.name = 'design';
   scene.add(group);
   const byId = new Map<string, THREE.Group>();
+  const holeMarkers = new THREE.Group();
+  holeMarkers.name = 'aligned-hole-markers';
+  scene.add(holeMarkers);
+  const holeMarkerGeometry = new THREE.RingGeometry(3.4, 4.1, 24);
+  const holeMarkerMaterial = new THREE.MeshBasicMaterial({
+    color: 0x00a94f,
+    side: THREE.DoubleSide,
+    depthTest: false,
+  });
   const raycaster = new THREE.Raycaster();
   // Rotation handles, shown around the single selected piece. They live
   // directly on the scene (not in the design group, whose children
@@ -213,6 +225,57 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
   let lastPlaced: readonly PlacedPiece[] = [];
   let lastLibrary: readonly LibraryPiece[] = [];
   let lastSelectedIds: readonly string[] = [];
+  let holesByPlacedId = new Map<string, readonly HolePoint[]>();
+
+  const refreshHoleMarkers = (): void => {
+    holeMarkers.clear();
+    const aligned = new Map<string, { x: number; z: number; y: number }>();
+    for (let i = 0; i < lastPlaced.length; i += 1) {
+      const first = lastPlaced[i];
+      if (first === undefined) continue;
+      if (first.rotation.x !== 0 || first.rotation.z !== 0) continue;
+      const firstHoles = holesByPlacedId.get(first.id) ?? [];
+      for (let j = i + 1; j < lastPlaced.length; j += 1) {
+        const second = lastPlaced[j];
+        if (second === undefined) continue;
+        if (second.rotation.x !== 0 || second.rotation.z !== 0) continue;
+        const secondHoles = holesByPlacedId.get(second.id) ?? [];
+        for (const a of firstHoles) {
+          const angleA = THREE.MathUtils.degToRad(first.rotation.y);
+          const pointA = {
+            x: first.position.x + a.x * Math.cos(angleA) + a.z * Math.sin(angleA),
+            z: first.position.z - a.x * Math.sin(angleA) + a.z * Math.cos(angleA),
+          };
+          for (const b of secondHoles) {
+            const angleB = THREE.MathUtils.degToRad(second.rotation.y);
+            const pointB = {
+              x: second.position.x + b.x * Math.cos(angleB) + b.z * Math.sin(angleB),
+              z: second.position.z - b.x * Math.sin(angleB) + b.z * Math.cos(angleB),
+            };
+            if (Math.hypot(pointA.x - pointB.x, pointA.z - pointB.z) > 2) continue;
+            const firstGeometryId = lastLibrary.find(
+              (entry) => entry.id === first.libraryId,
+            )?.geometryId;
+            const firstGeometry = firstGeometryId ? getGeometry(firstGeometryId) : undefined;
+            const y =
+              (byId.get(first.id)?.position.y ?? 0) +
+              (firstGeometry?.boundingBox?.max.y ?? 0) +
+              0.8;
+            for (const point of [pointA, pointB]) {
+              aligned.set(`${point.x.toFixed(2)},${point.z.toFixed(2)}`, { ...point, y });
+            }
+          }
+        }
+      }
+    }
+    for (const point of aligned.values()) {
+      const marker = new THREE.Mesh(holeMarkerGeometry, holeMarkerMaterial);
+      marker.rotation.x = -Math.PI / 2;
+      marker.position.set(point.x, point.y, point.z);
+      marker.renderOrder = 10;
+      holeMarkers.add(marker);
+    }
+  };
 
   /**
    * Recompute where the handles sit from the last synced design.
@@ -293,6 +356,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       lastLibrary = library;
       lastSelectedIds = selectedIds;
       const libraryById = new Map(library.map((piece) => [piece.id, piece]));
+      holesByPlacedId = new Map();
       const seen = new Set<string>();
       for (const placedPiece of placed) {
         seen.add(placedPiece.id);
@@ -304,6 +368,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         if (libraryPiece === undefined || geometry === undefined) {
           continue;
         }
+        holesByPlacedId.set(placedPiece.id, findVerticalThroughHoles(geometry));
         let object = byId.get(placedPiece.id);
         if (object === undefined) {
           object = createPieceMesh(geometry, libraryPiece.colourHex);
@@ -335,6 +400,11 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         }
       }
       updateHandles();
+      refreshHoleMarkers();
+    },
+
+    snapPosition(placedId: string, x: number, z: number): HoleSnapResult {
+      return snapToAlignedHole(placedId, { x, z }, lastPlaced, holesByPlacedId);
     },
 
     pick(ndcX: number, ndcY: number, camera: THREE.Camera): string | null {
@@ -458,6 +528,10 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         disposePieceMesh(object);
       }
       byId.clear();
+      holeMarkers.clear();
+      scene.remove(holeMarkers);
+      holeMarkerGeometry.dispose();
+      holeMarkerMaterial.dispose();
       disposeRotationHandles(handles);
       scene.remove(handles);
       scene.remove(protractor);

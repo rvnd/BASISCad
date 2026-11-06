@@ -77,6 +77,7 @@ src/
     constants.ts      Frozen spec values — the one place numbers live.
     designHistory.ts  Undo/redo history with grouped pointer edits.
     projects.ts       Local saved designs and recovery drafts.
+    holeSnapping.ts  Through-hole detection and 2 mm drag alignment.
     screws.ts         Screw-length rule (pure function, tested).
     *.test.ts         Vitest unit tests.
   components/
@@ -111,8 +112,12 @@ without rewrites:
 
 Milestones 0–5 are implemented. Milestone 5 adds named designs, browser
 save/open, automatic recovery, 100-step undo/redo, project management,
-and Center Project. Run `npm run test:e2e` for its Playwright smoke
-coverage.
+and Center Project. Milestone 6 is in progress: it detects vertical
+through-holes in flat STL/OBJ meshes, snaps a dragged hole to a matching
+hole within 2 mm, shows green rings for aligned holes, and allows
+snapping to be disabled or bypassed with Alt. Horizontal holes and
+pieces tilted around X or Z are not included yet. Run `npm run test:e2e`
+for Playwright smoke coverage.
 
 The build follows the milestone plan in
 `workspace/your_files/basiscad-milestone-plan/basiscad-milestone-plan.md`

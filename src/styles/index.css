@@ -316,6 +316,18 @@ body {
   cursor: pointer;
 }
 
+.snap-holes-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: 14px;
+}
+
+.snap-holes-toggle input {
+  accent-color: #00a94f;
+}
+
 .control-button:last-child {
   margin-bottom: 0;
 }

@@ -29,6 +29,8 @@ interface ViewControlsProps {
   onRemoveSelected: () => void;
   hasPieces: boolean;
   onCenterProject: () => void;
+  snapHoles: boolean;
+  onSnapHolesChange: (enabled: boolean) => void;
 }
 
 export default function ViewControls({
@@ -43,6 +45,8 @@ export default function ViewControls({
   onRemoveSelected,
   hasPieces,
   onCenterProject,
+  snapHoles,
+  onSnapHolesChange,
 }: ViewControlsProps) {
   return (
     <aside className="side-column left-column" aria-label="View controls">
@@ -79,6 +83,15 @@ export default function ViewControls({
         >
           Center Project
         </button>
+        <label className="snap-holes-toggle">
+          <input
+            type="checkbox"
+            checked={snapHoles}
+            onChange={(event) => onSnapHolesChange(event.currentTarget.checked)}
+          />
+          <span>Snap holes</span>
+        </label>
+        <p className="panel-note">Hold Alt while dragging to move freely.</p>
         <CameraViewsDropdown
           currentView={currentView}
           onSelectView={onSelectView}

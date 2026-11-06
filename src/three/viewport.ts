@@ -42,6 +42,8 @@ export interface ViewportHandle {
   ): void;
   /** What dragging a selected piece does (Milestone 4). */
   setSelectionMode(mode: SelectionMode): void;
+  /** Enable or disable automatic hole alignment while dragging. */
+  setHoleSnappingEnabled(enabled: boolean): void;
 }
 
 /**
@@ -159,6 +161,7 @@ export function createViewport(
   /** Degrees of Y rotation per pixel of horizontal drag in Rotate mode. */
   const ROTATE_DRAG_DEGREES_PER_PX = 0.5;
   let selectionMode: SelectionMode = 'move';
+  let holeSnappingEnabled = true;
   /** The handle the pointer currently hovers, if any — for highlight + cursor. */
   let hoveredHandle: RotationAxis | null = null;
   let downAt: { x: number; y: number } | null = null;
@@ -372,11 +375,14 @@ export function createViewport(
     if (point === null) {
       return;
     }
-    designCallbacks.onDragPiece(
-      gesture.placedId,
-      point.x + gesture.grabOffset.x,
-      point.z + gesture.grabOffset.z,
-    );
+    const x = point.x + gesture.grabOffset.x;
+    const z = point.z + gesture.grabOffset.z;
+    const snap =
+      holeSnappingEnabled && !event.altKey
+        ? designScene.snapPosition(gesture.placedId, x, z)
+        : { x, z, snapped: false };
+    setCursor(snap.snapped ? 'copy' : 'grabbing');
+    designCallbacks.onDragPiece(gesture.placedId, snap.x, snap.z);
   };
 
   const onPointerUp = (event: PointerEvent): void => {
@@ -487,6 +493,9 @@ export function createViewport(
       // setHandlesEnabled re-evaluates from the last sync, so the
       // handles appear the moment Rotate mode is entered.
       designScene.setHandlesEnabled(mode === 'rotate');
+    },
+    setHoleSnappingEnabled(enabled: boolean): void {
+      holeSnappingEnabled = enabled;
     },
     dispose(): void {
       disposed = true;

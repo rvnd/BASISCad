@@ -122,6 +122,7 @@ export default function App() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('move');
+  const [snapHoles, setSnapHoles] = useState(true);
   // Milestone 4: the quick-rotate step size for the panel buttons.
   const [rotateStep, setRotateStep] = useState(45);
   // Milestone 4: the rotation handle the pointer currently hovers.
@@ -275,6 +276,10 @@ export default function App() {
   useEffect(() => {
     viewportRef.current?.setSelectionMode(selectionMode);
   }, [selectionMode, viewportReady]);
+
+  useEffect(() => {
+    viewportRef.current?.setHoleSnappingEnabled(snapHoles);
+  }, [snapHoles, viewportReady]);
 
   useEffect(() => {
     if (lastHistoryPresentRef.current !== placed) {
@@ -619,6 +624,8 @@ export default function App() {
           onRemoveSelected={removeSelected}
           hasPieces={placed.length > 0}
           onCenterProject={centerProject}
+          snapHoles={snapHoles}
+          onSnapHolesChange={setSnapHoles}
         />
         <div className="viewport-wrap">
           <Viewport onReady={onViewportReady} designCallbacks={designCallbacks} />
