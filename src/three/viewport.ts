@@ -52,6 +52,8 @@ export interface ViewportHandle {
  * instead of jumping so its centre is under the cursor.
  */
 export interface ViewportDesignCallbacks {
+  onBeginEdit(): void;
+  onEndEdit(): void;
   onSelectPiece(placedId: string, additive: boolean): void;
   onDeselectAll(): void;
   onDragPiece(placedId: string, x: number, z: number): void;
@@ -230,6 +232,7 @@ export function createViewport(
       if (gesture.kind === 'handle' && designCallbacks !== undefined) {
         designCallbacks.onHandleDrag(null, null);
       }
+      designCallbacks?.onEndEdit();
       gesture = null;
     } else if (downAt !== null && !moved && designCallbacks !== undefined) {
       designCallbacks.onDeselectAll();
@@ -253,6 +256,7 @@ export function createViewport(
     if (handle !== null) {
       const rotation: RotationDeg | null = designScene.rotationOf(handle.placedId);
       if (rotation !== null) {
+        designCallbacks.onBeginEdit();
         gesture = {
           kind: 'handle',
           placedId: handle.placedId,
@@ -282,6 +286,7 @@ export function createViewport(
     }
     if (selectionMode === 'rotate') {
       const rotation: RotationDeg | null = designScene.rotationOf(hit);
+      designCallbacks.onBeginEdit();
       gesture = {
         kind: 'rotate',
         placedId: hit,
@@ -301,6 +306,7 @@ export function createViewport(
     if (point === null || centre === null) {
       return;
     }
+    designCallbacks.onBeginEdit();
     gesture = {
       kind: 'move',
       placedId: hit,
@@ -384,6 +390,7 @@ export function createViewport(
       if (gesture.kind === 'handle') {
         designCallbacks?.onHandleDrag(null, null);
       }
+      designCallbacks?.onEndEdit();
     }
     gesture = null;
     downAt = null;

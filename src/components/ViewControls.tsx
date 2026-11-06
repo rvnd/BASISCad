@@ -27,6 +27,8 @@ interface ViewControlsProps {
   selectionMode: SelectionMode;
   /** Remove the selected pieces from the design (not from the library). */
   onRemoveSelected: () => void;
+  hasPieces: boolean;
+  onCenterProject: () => void;
 }
 
 export default function ViewControls({
@@ -39,6 +41,8 @@ export default function ViewControls({
   selectedPieces,
   selectionMode,
   onRemoveSelected,
+  hasPieces,
+  onCenterProject,
 }: ViewControlsProps) {
   return (
     <aside className="side-column left-column" aria-label="View controls">
@@ -66,6 +70,14 @@ export default function ViewControls({
         </div>
         <button type="button" className="control-button" disabled={disabled} onClick={onFit}>
           Fit
+        </button>
+        <button
+          type="button"
+          className="control-button center-project-button"
+          disabled={!hasPieces}
+          onClick={onCenterProject}
+        >
+          Center Project
         </button>
         <CameraViewsDropdown
           currentView={currentView}

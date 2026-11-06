@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import AngleBadge from './components/AngleBadge.tsx';
 import Header from './components/Header.tsx';
+import ProjectDialog from './components/ProjectDialog.tsx';
+import type { ProjectDialogMode } from './components/ProjectDialog.tsx';
 import MoveRotatePanel from './components/MoveRotatePanel.tsx';
 import type { SingleSelection } from './components/MoveRotatePanel.tsx';
 import ShapesPanel from './components/ShapesPanel.tsx';
@@ -10,6 +12,7 @@ import { PIECE_COLOURS, SPEC_PIECES, isPieceReady, standInPieces } from './app/l
 import type { LibraryPiece, PieceCategory, PieceSizeMm } from './app/library';
 import {
   addPiecesRotation,
+  centerDesign,
   clampPosition,
   createPlacedPiece,
   flipPiecesRotation,
@@ -19,13 +22,51 @@ import {
   setPiecesRotation,
   toggleSelection,
 } from './app/design';
-import type { PlacedPiece, PositionMm, SelectionMode } from './app/design';
+import type { PositionMm, SelectionMode } from './app/design';
+import { canRedo, canUndo, createDesignHistory, reduceDesignHistory } from './app/designHistory';
+import {
+  clearRecoveryDraft,
+  deleteSavedDesign,
+  readRecoveryDraft,
+  readSavedDesigns,
+  recoveryMatchesSavedDesign,
+  saveDesign as persistDesign,
+  writeRecoveryDraft,
+} from './app/projects';
+import type { DesignDocument } from './app/projects';
 import { registerGeometry } from './three/libraryGeometry';
 import { loadPieceGeometry, loadPieceGeometryFromUrl } from './three/loadPieceFile';
 import { DEFAULT_CAMERA_VIEW_ID } from './three/cameraViews';
 import type { CameraViewId } from './three/cameraViews';
 import type { ViewportDesignCallbacks, ViewportHandle } from './three/viewport';
 import type { RotationAxis } from './three/rotationHandles';
+
+interface ActiveDesign {
+  id: string;
+  name: string;
+}
+
+function createDesignId(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `design-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
+}
+
+function readInitialProjectState(): {
+  saved: readonly DesignDocument[];
+  recovery: DesignDocument | null;
+  dialog: ProjectDialogMode;
+} {
+  const saved = readSavedDesigns(window.localStorage);
+  const recovery = readRecoveryDraft(window.localStorage);
+  const needsRecovery = recovery !== null && !recoveryMatchesSavedDesign(recovery, saved);
+  return {
+    saved,
+    recovery: needsRecovery ? recovery : null,
+    dialog: needsRecovery ? 'recovery' : 'new',
+  };
+}
 
 /**
  * App shell — composition and view state only, no 3D logic.
@@ -46,8 +87,8 @@ import type { RotationAxis } from './three/rotationHandles';
  * Milestone 3 adds design state: the pieces placed on the workplane
  * (`PlacedPiece[]`), which piece is selected, and the selection mode.
  * The viewport renders them from this data via `syncDesign` and reports
- * clicks and drags back as data. Milestone 5 adds design state (name,
- * save, undo) above this component.
+ * clicks and drags back as data. Milestone 5 adds named local designs,
+ * recovery, and undo/redo history above this component.
  */
 export default function App() {
   const viewportRef = useRef<ViewportHandle | null>(null);
@@ -60,7 +101,25 @@ export default function App() {
   // The spec pieces, with stand-in geometry attached once it loads.
   const [specPieces, setSpecPieces] = useState<readonly LibraryPiece[]>(SPEC_PIECES);
   // Milestone 3 design state: placed pieces, selection, selection mode.
-  const [placed, setPlaced] = useState<readonly PlacedPiece[]>([]);
+  const [history, dispatchHistory] = useReducer(reduceDesignHistory, undefined, () =>
+    createDesignHistory(),
+  );
+  const placed = history.present;
+  const [initialProjects] = useState(readInitialProjectState);
+  const [activeDesign, setActiveDesign] = useState<ActiveDesign>(() => ({
+    id: createDesignId(),
+    name: '',
+  }));
+  const [savedDesigns, setSavedDesigns] = useState<readonly DesignDocument[]>(
+    initialProjects.saved,
+  );
+  const [recoveryDraft, setRecoveryDraft] = useState<DesignDocument | null>(
+    initialProjects.recovery,
+  );
+  const [dialogMode, setDialogMode] = useState<ProjectDialogMode | null>(initialProjects.dialog);
+  const [startupDialog, setStartupDialog] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [storageError, setStorageError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('move');
   // Milestone 4: the quick-rotate step size for the panel buttons.
@@ -77,6 +136,7 @@ export default function App() {
     axis: RotationAxis;
   } | null>(null);
   const placedCounter = useRef(0);
+  const lastHistoryPresentRef = useRef(placed);
 
   // Load the bundled temporary stand-in STLs (see
   // public/library/LIBRARY_SOURCES.md). A stand-in that fails to load
@@ -108,6 +168,41 @@ export default function App() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    if (activeDesign.name.length === 0) {
+      return;
+    }
+    try {
+      writeRecoveryDraft(window.localStorage, {
+        ...activeDesign,
+        placed,
+        updatedAt: Date.now(),
+      });
+    } catch {
+      queueMicrotask(() => setStorageError('Could not save the recovery copy in this browser.'));
+    }
+  }, [activeDesign, placed]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') {
+        return;
+      }
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      dispatchHistory({ type: event.shiftKey ? 'redo' : 'undo' });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   const onViewportReady = useCallback((handle: ViewportHandle | null) => {
@@ -181,6 +276,13 @@ export default function App() {
     viewportRef.current?.setSelectionMode(selectionMode);
   }, [selectionMode, viewportReady]);
 
+  useEffect(() => {
+    if (lastHistoryPresentRef.current !== placed) {
+      lastHistoryPresentRef.current = placed;
+      setSaveStatus(null);
+    }
+  }, [placed]);
+
   const sizeById: ReadonlyMap<string, PieceSizeMm> = useMemo(() => {
     const map = new Map<string, PieceSizeMm>();
     for (const piece of libraryPieces) {
@@ -191,8 +293,106 @@ export default function App() {
     return map;
   }, [libraryPieces]);
 
+  const centerProject = useCallback(() => {
+    dispatchHistory({ type: 'edit', apply: (previous) => centerDesign(previous, sizeById) });
+  }, [sizeById]);
+
+  const closeDialog = useCallback(() => {
+    setDialogMode(startupDialog ? 'new' : null);
+  }, [startupDialog]);
+
+  const showDialog = useCallback((mode: ProjectDialogMode) => {
+    if (mode === 'open' || mode === 'manage') {
+      setSavedDesigns(readSavedDesigns(window.localStorage));
+    }
+    setDialogMode(mode);
+  }, []);
+
+  const startDesign = useCallback((name: string) => {
+    clearRecoveryDraft(window.localStorage);
+    setRecoveryDraft(null);
+    setActiveDesign({ id: createDesignId(), name });
+    dispatchHistory({ type: 'replace', placed: [] });
+    setSelectedIds([]);
+    setSelectionMode('move');
+    setBadgeAxis(null);
+    setDialogMode(null);
+    setStartupDialog(false);
+    setSaveStatus(null);
+  }, []);
+
+  const renameDesign = useCallback((name: string) => {
+    setActiveDesign((previous) => ({ ...previous, name }));
+    setDialogMode(null);
+  }, []);
+
+  const openSavedDesign = useCallback((design: DesignDocument) => {
+    setActiveDesign({ id: design.id, name: design.name });
+    dispatchHistory({ type: 'replace', placed: design.placed });
+    setSelectedIds([]);
+    setSelectionMode('move');
+    setBadgeAxis(null);
+    setDialogMode(null);
+    setStartupDialog(false);
+    setSaveStatus(null);
+  }, []);
+
+  const saveActiveDesign = useCallback(() => {
+    if (activeDesign.name.trim().length === 0) {
+      showDialog('new');
+      return;
+    }
+    try {
+      const saved = persistDesign(window.localStorage, {
+        ...activeDesign,
+        placed,
+        updatedAt: Date.now(),
+      });
+      setSavedDesigns(saved);
+      setSaveStatus('Saved on this device');
+      setStorageError(null);
+    } catch {
+      setStorageError('Could not save this design in this browser.');
+    }
+  }, [activeDesign, placed, showDialog]);
+
+  const removeSavedDesign = useCallback((id: string) => {
+    try {
+      setSavedDesigns(deleteSavedDesign(window.localStorage, id));
+      setStorageError(null);
+    } catch {
+      setStorageError('Could not delete that saved project.');
+    }
+  }, []);
+
+  const restoreRecovery = useCallback(() => {
+    if (recoveryDraft === null) {
+      return;
+    }
+    setActiveDesign({ id: recoveryDraft.id, name: recoveryDraft.name });
+    dispatchHistory({ type: 'replace', placed: recoveryDraft.placed });
+    setSelectedIds([]);
+    setSelectionMode('move');
+    setBadgeAxis(null);
+    setDialogMode(null);
+    setStartupDialog(false);
+  }, [recoveryDraft]);
+
+  const discardRecovery = useCallback(() => {
+    clearRecoveryDraft(window.localStorage);
+    setRecoveryDraft(null);
+    setDialogMode('new');
+    setStartupDialog(true);
+  }, []);
+
   const designCallbacks: ViewportDesignCallbacks = useMemo(
     () => ({
+      onBeginEdit(): void {
+        dispatchHistory({ type: 'begin-edit' });
+      },
+      onEndEdit(): void {
+        dispatchHistory({ type: 'end-edit' });
+      },
       onSelectPiece(placedId: string, additive: boolean): void {
         setSelectedIds((previous) => toggleSelection(previous, placedId, additive));
         // Selecting keeps the current mode and the piece's rotation.
@@ -202,25 +402,30 @@ export default function App() {
         setBadgeAxis(null);
       },
       onDragPiece(placedId: string, x: number, z: number): void {
-        setPlaced((previous) =>
-          previous.map((piece) => {
-            if (piece.id !== placedId) {
-              return piece;
-            }
-            const sizeMm: PieceSizeMm | null =
-              libraryByIdRef.current.get(piece.libraryId)?.sizeMm ?? null;
-            return {
-              ...piece,
-              position:
-                sizeMm === null
-                  ? { ...piece.position, x, z }
-                  : clampPosition(x, piece.position.y, z, sizeMm),
-            };
-          }),
-        );
+        dispatchHistory({
+          type: 'edit',
+          apply: (previous) =>
+            previous.map((piece) => {
+              if (piece.id !== placedId) {
+                return piece;
+              }
+              const sizeMm: PieceSizeMm | null =
+                libraryByIdRef.current.get(piece.libraryId)?.sizeMm ?? null;
+              return {
+                ...piece,
+                position:
+                  sizeMm === null
+                    ? { ...piece.position, x, z }
+                    : clampPosition(x, piece.position.y, z, sizeMm),
+              };
+            }),
+        });
       },
       onRotatePiece(placedId: string, axis: RotationAxis, angleDeg: number): void {
-        setPlaced((previous) => setPiecesRotation(previous, [placedId], axis, angleDeg));
+        dispatchHistory({
+          type: 'edit',
+          apply: (previous) => setPiecesRotation(previous, [placedId], axis, angleDeg),
+        });
       },
       onBeginRotate(): void {
         // Grabbing a handle switches the selection to Rotate mode.
@@ -253,10 +458,13 @@ export default function App() {
       }
       placedCounter.current += 1;
       const id = `placed-${placedCounter.current}`;
-      setPlaced((previous) => [
-        ...previous,
-        createPlacedPiece(id, libraryId, previous.length, sizeMm),
-      ]);
+      dispatchHistory({
+        type: 'edit',
+        apply: (previous) => [
+          ...previous,
+          createPlacedPiece(id, libraryId, previous.length, sizeMm),
+        ],
+      });
       setSelectedIds([id]);
       setSelectionMode('move');
     },
@@ -264,24 +472,27 @@ export default function App() {
   );
 
   const removeSelected = useCallback(() => {
-    setPlaced((previous) => removePlaced(previous, selectedIds));
+    dispatchHistory({ type: 'edit', apply: (previous) => removePlaced(previous, selectedIds) });
     setSelectedIds([]);
   }, [selectedIds]);
 
   // Milestone 4: precise move and rotate, acting on the selection.
   const moveSelected = useCallback(
     (axis: keyof PositionMm, value: number) => {
-      setPlaced((previous) => {
-        const single = previous.find((piece) => piece.id === selectedIds[0]);
-        if (single === undefined) {
-          return previous;
-        }
-        return setPiecesPosition(
-          previous,
-          selectedIds,
-          { ...single.position, [axis]: value },
-          sizeById,
-        );
+      dispatchHistory({
+        type: 'edit',
+        apply: (previous) => {
+          const single = previous.find((piece) => piece.id === selectedIds[0]);
+          if (single === undefined) {
+            return previous;
+          }
+          return setPiecesPosition(
+            previous,
+            selectedIds,
+            { ...single.position, [axis]: value },
+            sizeById,
+          );
+        },
       });
     },
     [selectedIds, sizeById],
@@ -289,34 +500,47 @@ export default function App() {
 
   const rotateStepSelected = useCallback(
     (axis: RotationAxis, direction: 1 | -1) => {
-      setPlaced((previous) =>
-        addPiecesRotation(previous, selectedIds, axis, direction * rotateStep),
-      );
+      dispatchHistory({
+        type: 'edit',
+        apply: (previous) => addPiecesRotation(previous, selectedIds, axis, direction * rotateStep),
+      });
     },
     [selectedIds, rotateStep],
   );
 
   const setAngleSelected = useCallback(
     (axis: RotationAxis, degrees: number) => {
-      setPlaced((previous) => setPiecesRotation(previous, selectedIds, axis, degrees));
+      dispatchHistory({
+        type: 'edit',
+        apply: (previous) => setPiecesRotation(previous, selectedIds, axis, degrees),
+      });
     },
     [selectedIds],
   );
 
   const flipSelected = useCallback(
     (axis: RotationAxis) => {
-      setPlaced((previous) => flipPiecesRotation(previous, selectedIds, axis));
+      dispatchHistory({
+        type: 'edit',
+        apply: (previous) => flipPiecesRotation(previous, selectedIds, axis),
+      });
     },
     [selectedIds],
   );
 
   const resetOrientationSelected = useCallback(() => {
-    setPlaced((previous) => resetPiecesRotation(previous, selectedIds));
+    dispatchHistory({
+      type: 'edit',
+      apply: (previous) => resetPiecesRotation(previous, selectedIds),
+    });
   }, [selectedIds]);
 
   const rotate90Selected = useCallback(
     (axis: RotationAxis) => {
-      setPlaced((previous) => addPiecesRotation(previous, selectedIds, axis, 90));
+      dispatchHistory({
+        type: 'edit',
+        apply: (previous) => addPiecesRotation(previous, selectedIds, axis, 90),
+      });
     },
     [selectedIds],
   );
@@ -324,7 +548,10 @@ export default function App() {
   const setAngleForPiece = useCallback((placedId: string, axis: RotationAxis, degrees: number) => {
     // The badge types an angle for the dragged piece only — unlike
     // the panel's typed fields, which apply to the whole selection.
-    setPlaced((previous) => setPiecesRotation(previous, [placedId], axis, degrees));
+    dispatchHistory({
+      type: 'edit',
+      apply: (previous) => setPiecesRotation(previous, [placedId], axis, degrees),
+    });
   }, []);
 
   const handleSetMode = useCallback((mode: SelectionMode) => {
@@ -366,7 +593,19 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header />
+      <Header
+        designName={activeDesign.name || 'Name this design'}
+        canUndo={canUndo(history)}
+        canRedo={canRedo(history)}
+        saveStatus={saveStatus}
+        onRename={() => showDialog('rename')}
+        onUndo={() => dispatchHistory({ type: 'undo' })}
+        onRedo={() => dispatchHistory({ type: 'redo' })}
+        onSave={saveActiveDesign}
+        onOpen={() => showDialog('open')}
+        onNew={() => showDialog('new')}
+        onManage={() => showDialog('manage')}
+      />
       <main className="app-main">
         <ViewControls
           currentView={currentView}
@@ -378,9 +617,16 @@ export default function App() {
           selectedPieces={selectedPieces}
           selectionMode={selectionMode}
           onRemoveSelected={removeSelected}
+          hasPieces={placed.length > 0}
+          onCenterProject={centerProject}
         />
         <div className="viewport-wrap">
           <Viewport onReady={onViewportReady} designCallbacks={designCallbacks} />
+          {storageError !== null && (
+            <p className="storage-alert" role="alert">
+              {storageError}
+            </p>
+          )}
           <MoveRotatePanel
             key={singleSelected?.id ?? `multi-${selectedIds.length}`}
             single={singleSelected}
@@ -424,6 +670,24 @@ export default function App() {
           onPlace={placePiece}
         />
       </main>
+      {dialogMode !== null && (
+        <ProjectDialog
+          key={dialogMode}
+          mode={dialogMode}
+          currentName={activeDesign.name}
+          projects={savedDesigns}
+          recovery={recoveryDraft}
+          canClose={!startupDialog}
+          onClose={closeDialog}
+          onCreate={startDesign}
+          onRename={renameDesign}
+          onOpen={openSavedDesign}
+          onDelete={removeSavedDesign}
+          onRestore={restoreRecovery}
+          onDiscardRecovery={discardRecovery}
+          onShowOpen={() => showDialog('open')}
+        />
+      )}
     </div>
   );
 }

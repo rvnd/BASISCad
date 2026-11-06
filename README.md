@@ -52,6 +52,8 @@ npm run dev      # dev server with hot reload
 npm run build    # typecheck + production build into dist/
 npm run preview  # serve the production build locally
 npm test         # unit tests (Vitest)
+npx playwright install chromium # first time only
+npm run test:e2e # browser smoke tests (Playwright)
 npm run typecheck
 npm run lint
 ```
@@ -73,16 +75,21 @@ src/
   App.tsx             Shell composition only (Header + Viewport).
   app/
     constants.ts      Frozen spec values — the one place numbers live.
+    designHistory.ts  Undo/redo history with grouped pointer edits.
+    projects.ts       Local saved designs and recovery drafts.
     screws.ts         Screw-length rule (pure function, tested).
     *.test.ts         Vitest unit tests.
   components/
-    Header.tsx        BASIScad header: chevrons + wordmark.
+    Header.tsx        BASIScad header, design actions, undo/redo.
+    ProjectDialog.tsx Name, open, manage, and recovery dialogs.
     Viewport.tsx      React wrapper: owns the canvas mount/unmount.
   three/
     workplane.ts      Pure Three.js: 1000×1000 mm grid, axes, camera.
     viewport.ts       Renderer / scene / controls / loop / dispose.
   styles/
     index.css         Layout + header + viewport styles.
+e2e/
+  app.spec.ts         Playwright smoke tests for core user flows.
 ```
 
 The split is deliberate, and it is what lets Milestones 1–19 grow
@@ -94,13 +101,18 @@ without rewrites:
 - **The scene is built from small pure functions** (`createWorkplane`,
   `createFramingCamera`) so later milestones can add pieces, selection,
   and snapping as new modules that attach to the scene.
-- **App state lives above the shell, not in the viewport.** When design
-  state arrives (Milestone 5: name, save, undo), it goes in `src/app/`
-  and flows down as props — the viewport stays a dumb canvas.
+- **App state lives above the shell, not in the viewport.** Design
+  history and local persistence live in `src/app/` and flow into the
+  viewport as plain data — the viewport stays a dumb canvas.
 - **Spec numbers live in one file** (`src/app/constants.ts`) with tests,
   so a wrong constant fails CI instead of silently warping a design.
 
 ## Milestones
+
+Milestones 0–5 are implemented. Milestone 5 adds named designs, browser
+save/open, automatic recovery, 100-step undo/redo, project management,
+and Center Project. Run `npm run test:e2e` for its Playwright smoke
+coverage.
 
 The build follows the milestone plan in
 `workspace/your_files/basiscad-milestone-plan/basiscad-milestone-plan.md`

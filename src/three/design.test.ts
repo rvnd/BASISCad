@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   addPiecesRotation,
+  centerDesign,
   clampPosition,
   createPlacedPiece,
   defaultPlacement,
@@ -80,6 +81,24 @@ describe('design', () => {
     const moved = setPiecesPosition(placed, ['p1'], { x: 9999, y: -5, z: 100 }, sizes);
     expect(moved[0]?.position).toEqual({ x: 475, y: 0, z: 100 });
     expect(moved[1]).toBe(placed[1]);
+  });
+
+  it('centres the entire design while preserving heights and spacing', () => {
+    const placed = [
+      { ...createPlacedPiece('p1', 'girder-1x4', 0, small), position: { x: -200, y: 15, z: 100 } },
+      { ...createPlacedPiece('p2', 'girder-1x6', 1, small), position: { x: 100, y: 40, z: 300 } },
+    ];
+    const sizes = new Map([
+      ['girder-1x4', small],
+      ['girder-1x6', small],
+    ]);
+
+    const centred = centerDesign(placed, sizes);
+    expect(centred.map((piece) => piece.position)).toEqual([
+      { x: -150, y: 15, z: -100 },
+      { x: 150, y: 40, z: 100 },
+    ]);
+    expect((centred[1]?.position.x ?? 0) - (centred[0]?.position.x ?? 0)).toBe(300);
   });
 
   it('rotates selected pieces together and keeps the rest', () => {

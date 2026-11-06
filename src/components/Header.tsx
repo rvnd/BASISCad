@@ -1,30 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
 import { BRAND_RED } from '../app/constants';
 
-/**
- * The BASIScad header. Black bar, white wordmark, red chevrons — the
- * frozen branding from the prototype.
- *
- * The design actions live behind a single Menu button at the top right.
- * The menu opens as a dropdown under the button (absolutely positioned,
- * so the header's fixed height never changes) and closes on an outside
- * click or Escape. The actions themselves are not built yet — Save /
- * Open / New arrive with Milestone 5, Print with Milestone 12, Help
- * with Milestone 13 — so each is a disabled button that says which
- * milestone adds it, instead of a dead-looking button that pretends to
- * work (the prototype shipped dead Settings and Help buttons; this app
- * does not).
- */
+interface HeaderProps {
+  designName: string;
+  canUndo: boolean;
+  canRedo: boolean;
+  saveStatus: string | null;
+  onRename: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  onSave: () => void;
+  onOpen: () => void;
+  onNew: () => void;
+  onManage: () => void;
+}
 
-const ACTIONS = [
-  { label: 'Save Design', milestone: 5 },
-  { label: 'Open Design', milestone: 5 },
-  { label: 'New Design', milestone: 5 },
-  { label: 'Print Design', milestone: 12 },
-  { label: 'Help', milestone: 13 },
-] as const;
-
-export default function Header() {
+export default function Header({
+  designName,
+  canUndo,
+  canRedo,
+  saveStatus,
+  onRename,
+  onUndo,
+  onRedo,
+  onSave,
+  onOpen,
+  onNew,
+  onManage,
+}: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -50,66 +53,123 @@ export default function Header() {
     };
   }, [menuOpen]);
 
+  const actions = [
+    { label: 'Save Design', onClick: onSave },
+    { label: 'Open Design', onClick: onOpen },
+    { label: 'New Design', onClick: onNew },
+    { label: 'Manage Projects', onClick: onManage },
+  ];
+
   return (
     <header className="header">
-      <div className="brand" aria-label="BASIScad">
-        <svg
-          className="brand-chevrons"
-          viewBox="0 0 32 32"
-          width="28"
-          height="28"
-          aria-hidden="true"
+      <div className="header-start">
+        <div className="brand" aria-label="BASIScad">
+          <svg
+            className="brand-chevrons"
+            viewBox="0 0 32 32"
+            width="28"
+            height="28"
+            aria-hidden="true"
+          >
+            <polyline
+              points="5,5 15,16 5,27"
+              fill="none"
+              stroke={BRAND_RED}
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <polyline
+              points="16,5 26,16 16,27"
+              fill="none"
+              stroke={BRAND_RED}
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="brand-wordmark">
+            <span className="brand-basis">BASIS</span>
+            <span className="brand-cad">cad</span>
+          </span>
+        </div>
+        <button
+          type="button"
+          className="design-name-button"
+          aria-label={`Rename design ${designName}`}
+          onClick={onRename}
         >
-          <polyline
-            points="5,5 15,16 5,27"
-            fill="none"
-            stroke={BRAND_RED}
-            strokeWidth="4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <polyline
-            points="16,5 26,16 16,27"
-            fill="none"
-            stroke={BRAND_RED}
-            strokeWidth="4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span className="brand-wordmark">
-          <span className="brand-basis">BASIS</span>
-          <span className="brand-cad">cad</span>
-        </span>
+          {designName}
+          <span aria-hidden="true"> ✎</span>
+        </button>
+        <div className="history-buttons" role="group" aria-label="Edit history">
+          <button
+            type="button"
+            aria-label="Undo"
+            title="Undo (Ctrl/⌘ Z)"
+            disabled={!canUndo}
+            onClick={onUndo}
+          >
+            ↶
+          </button>
+          <button
+            type="button"
+            aria-label="Redo"
+            title="Redo (Ctrl/⌘ Shift Z)"
+            disabled={!canRedo}
+            onClick={onRedo}
+          >
+            ↷
+          </button>
+        </div>
       </div>
-      <span className="header-status">Milestone 4 · precise move and rotate</span>
+      <span className="header-status" role="status">
+        {saveStatus ?? 'Milestone 5 · local design'}
+      </span>
       <div className="header-menu" ref={menuRef}>
         <button
           type="button"
           className="menu-button"
           aria-haspopup="true"
           aria-expanded={menuOpen}
-          onClick={() => {
-            setMenuOpen((wasOpen) => !wasOpen);
-          }}
+          onClick={() => setMenuOpen((wasOpen) => !wasOpen)}
         >
           Menu
         </button>
         {menuOpen && (
           <div className="menu-panel" role="menu" aria-label="Design actions">
-            {ACTIONS.map((action) => (
+            {actions.map((action) => (
               <button
                 key={action.label}
                 type="button"
                 role="menuitem"
                 className="menu-action"
-                disabled
-                title={`${action.label} — Milestone ${action.milestone}`}
+                onClick={() => {
+                  setMenuOpen(false);
+                  action.onClick();
+                }}
               >
                 {action.label}
               </button>
             ))}
-            <p className="menu-note">These arrive in later milestones.</p>
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-action"
+              disabled
+              title="Print Design — Milestone 12"
+            >
+              Print Design
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-action"
+              disabled
+              title="Help — Milestone 13"
+            >
+              Help
+            </button>
           </div>
         )}
       </div>

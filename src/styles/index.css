@@ -423,6 +423,53 @@ body {
   gap: 10px;
 }
 
+.header-start {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+.design-name-button {
+  max-width: 220px;
+  overflow: hidden;
+  padding: 5px 8px;
+  color: var(--brand-white);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.design-name-button:hover,
+.design-name-button:focus-visible {
+  border-color: #777777;
+}
+
+.history-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.history-buttons button {
+  width: 30px;
+  height: 30px;
+  color: var(--brand-white);
+  background: transparent;
+  border: 1px solid #777777;
+  border-radius: 4px;
+  font-size: 19px;
+  cursor: pointer;
+}
+
+.history-buttons button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .brand-chevrons {
   flex-shrink: 0;
 }
@@ -491,11 +538,20 @@ body {
   padding: 8px 10px;
   font-family: inherit;
   font-size: 14px;
-  color: #999999;
+  color: var(--brand-black);
   text-align: left;
   background: none;
   border: none;
   border-radius: 4px;
+  cursor: pointer;
+}
+
+.menu-action:hover:not(:disabled) {
+  background: #f1f1f1;
+}
+
+.menu-action:disabled {
+  color: #999999;
   cursor: not-allowed;
 }
 
@@ -505,6 +561,134 @@ body {
   font-size: 12px;
   color: var(--text-muted);
   border-top: 1px solid #eeeeee;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.project-dialog {
+  width: min(520px, 100%);
+  max-height: min(80vh, 680px);
+  overflow-y: auto;
+  padding: 20px;
+  background: var(--brand-white);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.25);
+}
+
+.dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.dialog-heading h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.dialog-close {
+  padding: 0 6px;
+  color: #555555;
+  background: none;
+  border: 0;
+  font-size: 26px;
+  cursor: pointer;
+}
+
+.dialog-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.dialog-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #999999;
+  border-radius: 4px;
+  font: inherit;
+}
+
+.dialog-actions,
+.project-delete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.dialog-primary,
+.dialog-secondary,
+.dialog-danger {
+  padding: 8px 12px;
+  border: 1px solid #999999;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dialog-primary {
+  color: var(--brand-white);
+  background: var(--brand-red);
+  border-color: var(--brand-red);
+}
+
+.dialog-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dialog-secondary {
+  color: var(--brand-black);
+  background: var(--brand-white);
+}
+
+.dialog-danger {
+  color: #a1252a;
+  background: var(--brand-white);
+  border-color: #c6474c;
+}
+
+.project-list {
+  max-height: 360px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.project-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eeeeee;
+}
+
+.project-row-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.project-row-copy span {
+  color: var(--text-muted);
 }
 
 /* Move and rotate panel (Milestone 4) — overlay in the top-right

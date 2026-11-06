@@ -144,6 +144,46 @@ export function setPiecesPosition(
   });
 }
 
+/** Move a whole design to the centre of the workplane without changing its shape or heights. */
+export function centerDesign(
+  placed: readonly PlacedPiece[],
+  sizeById: ReadonlyMap<string, PieceSizeMm>,
+): readonly PlacedPiece[] {
+  if (placed.length === 0) {
+    return placed;
+  }
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minZ = Number.POSITIVE_INFINITY;
+  let maxZ = Number.NEGATIVE_INFINITY;
+  for (const piece of placed) {
+    const size = sizeById.get(piece.libraryId);
+    const halfX = (size?.x ?? 0) / 2;
+    const halfZ = (size?.z ?? 0) / 2;
+    minX = Math.min(minX, piece.position.x - halfX);
+    maxX = Math.max(maxX, piece.position.x + halfX);
+    minZ = Math.min(minZ, piece.position.z - halfZ);
+    maxZ = Math.max(maxZ, piece.position.z + halfZ);
+  }
+  const desiredX = -(minX + maxX) / 2;
+  const desiredZ = -(minZ + maxZ) / 2;
+  const deltaX =
+    maxX - minX <= WORKPLANE_HALF_MM * 2
+      ? Math.min(Math.max(desiredX, -WORKPLANE_HALF_MM - minX), WORKPLANE_HALF_MM - maxX)
+      : desiredX;
+  const deltaZ =
+    maxZ - minZ <= WORKPLANE_HALF_MM * 2
+      ? Math.min(Math.max(desiredZ, -WORKPLANE_HALF_MM - minZ), WORKPLANE_HALF_MM - maxZ)
+      : desiredZ;
+  if (deltaX === 0 && deltaZ === 0) {
+    return placed;
+  }
+  return placed.map((piece) => ({
+    ...piece,
+    position: { ...piece.position, x: piece.position.x + deltaX, z: piece.position.z + deltaZ },
+  }));
+}
+
 /** Add a rotation step to one axis of every selected piece. */
 export function addPiecesRotation(
   placed: readonly PlacedPiece[],
