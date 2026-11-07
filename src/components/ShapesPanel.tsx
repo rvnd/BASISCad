@@ -10,13 +10,10 @@ import type { LibraryPiece, PieceCategory } from '../app/library';
 import ImportPieces from './ImportPieces';
 
 /**
- * The right-hand Shapes panel: only the pieces that have a model
- * file — right now the three temporary stand-ins (1x6 Girder, 2x2
- * Panel, L-Brace) plus any pieces imported in this session — in three
- * collapsible sections (Girders, Braces, Plates). The other 14 spec
- * pieces are hidden from the UI until their STLs arrive; the 17-piece
- * spec data is untouched, so a piece reappears as soon as it has a
- * file. The panel itself is collapsible (from Milestone 1).
+ * The right-hand Shapes panel: all 17 spec pieces (each with a
+ * bundled STL file) plus any pieces imported in this session, in
+ * three collapsible sections (Girders, Braces, Plates). The panel
+ * itself is collapsible (from Milestone 1).
  *
  * Each entry shows a colour swatch (never a fake thumbnail), its name,
  * its hole count ("holes: ?" when the count is not established), and
@@ -33,38 +30,20 @@ interface ShapesPanelProps {
   onPlace: (libraryId: string) => void;
 }
 
-function sizeLabel(piece: LibraryPiece): string {
-  if (piece.sizeMm === null) {
-    return '';
-  }
-  const { x, y, z } = piece.sizeMm;
-  return ` Size as imported: ${x.toFixed(1)} × ${y.toFixed(1)} × ${z.toFixed(1)} mm.`;
-}
-
 function PieceEntry({ piece, onPlace }: { piece: LibraryPiece; onPlace: (id: string) => void }) {
   const ready = isPieceReady(piece);
-  // A stand-in whose file is still loading is not ready yet, but it
-  // is not "STL needed" either — its file is already bundled.
-  const status = ready
-    ? piece.standIn !== undefined
-      ? 'Temporary stand-in'
-      : 'Ready'
-    : piece.standIn !== undefined
-      ? 'Loading…'
-      : 'STL needed';
+  // A bundled file that is still loading is not ready yet, but it is
+  // not "STL needed" either — its file is already bundled.
+  const status = ready ? 'Ready' : piece.bundledFile !== undefined ? 'Loading…' : 'STL needed';
   const statusClass = ready
-    ? piece.standIn !== undefined
-      ? 'library-status-standin'
-      : 'library-status-ready'
-    : piece.standIn !== undefined
+    ? 'library-status-ready'
+    : piece.bundledFile !== undefined
       ? 'library-status-standin'
       : 'library-status-needed';
   const title = ready
-    ? piece.standIn !== undefined
-      ? `Temporary stand-in STL — real piece STL still needed.${sizeLabel(piece)}`
-      : undefined
-    : piece.standIn !== undefined
-      ? 'Temporary stand-in STL loading — use Import Pieces above to try another file.'
+    ? undefined
+    : piece.bundledFile !== undefined
+      ? 'Bundled STL loading — use Import Pieces above to try another file.'
       : 'STL not imported yet — use Import Pieces above.';
   return (
     <li className="library-entry" title={title}>
@@ -180,9 +159,8 @@ export default function ShapesPanel({
               );
             })}
             <p className="panel-note">
-              Only pieces with an STL file are shown. Three have a temporary stand-in for now (1x6
-              Girder, 2x2 Panel, L-Brace) — the other 14 spec pieces are hidden until their real
-              STLs arrive. Import a piece above to add it to the list.
+              All 17 kit pieces are shown — each has its own STL file. Import a piece above to add
+              it to the list.
             </p>
           </>
         )}

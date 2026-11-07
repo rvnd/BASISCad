@@ -1,92 +1,86 @@
-# Library sources — temporary stand-in STLs
+# Library STLs — sources
 
-These three files are **temporary stand-ins** for the real BASISCad
-piece STLs, which are still to come from the friend / Tinkercad
-exports. Each one stands in for one spec piece in the library so
-Milestones 2 and 3 can be demonstrated end to end. When a real piece
-STL arrives, it replaces the stand-in for that piece and this file is
-updated; nothing else in the app depends on the stand-in geometry.
+All 17 kit pieces have a bundled STL file in this folder, named after
+the library piece id (`girder-1x4.stl`, `brace-l.stl`, `plate-2x2.stl`,
+…). The Shapes panel lists all 17.
 
-All three files come from the same source and share the same licence:
+## Where the geometry comes from
 
-- **Source repository:** https://github.com/azdle/printables
-- **Licence:** CC0 1.0 Universal (public-domain dedication) — the
-  repo's README states the author "dedicated all these works to the
-  public domain using the CC0 dedication, you may do anything you wish
-  with them", with a note that some models may depend on third-party
-  code not under CC0. The three files below are generated from the
-  OpenSCAD sources in the same folders of that repo, by the same
-  author; no third-party code is involved in them.
-- **Sizes below are the actual imported sizes, in millimetres, as
-  measured from the files** (bounding box, after the Z-up → Y-up
-  orientation the loader applies so the part lies flat). Original
-  sizes are preserved — nothing was rescaled.
+These are **not** Lucas Kasper's original Tinkercad files — those were
+never available as files (the Tinkercad collection linked in the
+transcript opens empty for our account). They are also not re-modelled
+from dimensions: the written spec states almost no dimensions beyond
+the 1x4 Girder (50.95 × 12.70 × 3.175 mm).
 
-## Stand-ins in use
+Instead, the geometry was **recovered from the prototype's own public
+guest API**: `GET /api/guest/library` lists the 17 pieces and
+`GET /api/guest/library/<id>` returns each piece's triangle mesh plus
+its snap-hole list — the same triangles the prototype renders in the
+browser. The generator (`scripts/generate-library-stls/`, which vendors
+the API responses under `source/` for offline regeneration) converts
+each mesh to a binary STL and validates it: watertight,
+winding-consistent, and the genus-derived hole count equal to the
+prototype's hole count. The one normalisation is the 1x11 Girder,
+whose source mesh lies along Y; it is rotated +90° about Z so its
+length lies along X like every other girder.
 
-### 1x6 Girder — `apu-rack-mount.stl`
+## Orientation
 
-- **File:** `apu-rack-mount.stl` (663,754 bytes, 4,036 triangles)
-- **Source:** https://github.com/azdle/printables/blob/master/rack-mount-stuff/apu-rack-mount.stl
-- **Licence:** CC0 1.0 (see above)
-- **What it is:** a rack-mount bracket for a PCEngines APU2 enclosure
-  — a flat perforated bar.
-- **Imported size:** 178.00 × 8.00 × 51.40 mm (length × thickness × width)
-- **Through-holes, verified by mesh genus:** 5
-- **Note:** much longer and wider than a real 1x6 girder (about
-  76 × 12.70 × 3.175 mm by the 1x4's proportions). The spec hole
-  count (6) is what the panel and budget use; the stand-in's own
-  geometry has 5 holes.
+The STLs are written **Z-up** (the 3D-printing convention: the part
+lies flat in the XY plane, thickness along Z, bottom face on z = 0).
+The app's loader rotates them flat into its Y-up frame
+(`src/three/loadPieceFile.ts`, `assumeZUp: true`) — including the
+braces, whose arms stand up in Z and must not be left on their side.
+The Y-up sizes in `src/app/library.ts` are the sizes after that
+rotation: x = length, y = thickness/height, z = width.
 
-### 2x2 Panel — `pc-board-mount.stl`
+## Dimensions and holes
 
-- **File:** `pc-board-mount.stl` (1,034,599 bytes, 6,144 triangles)
-- **Source:** https://github.com/azdle/printables/blob/master/unsorted/pc-board-mount.stl
-- **Licence:** CC0 1.0 (see above)
-- **What it is:** a flat mount for a PC board — a flat plate with
-  mounting holes.
-- **Imported size:** 48.00 × 5.00 × 91.00 mm (length × thickness × width)
-- **Through-holes, verified by mesh genus:** 9
-- **Note:** the spec hole count (4) is what the panel and budget use;
-  the stand-in's own geometry has 9 holes.
+Hole diameter is **4.196 mm** (radius 2.098 mm) on every hole — the
+prototype's value — which clears a #6-32 screw (3.505 mm across). One
+H-Brace hole is 2.13 mm radius in the source; it is preserved as-is.
+Hole pitch on the girders and panels is 12.7 mm. All flat pieces are
+3.175 mm thick. Sizes below are in the source (Z-up) frame: x = length,
+y = width, z = thickness — the same numbers, reordered, as the Y-up
+sizes in `src/app/library.ts`.
 
-### L-Brace — `l-bracket.stl`
+| Piece       | Size (x × y × z, mm)  | Holes | Triangles |
+| ----------- | --------------------- | ----- | --------- |
+| 1x4 Girder  | 50.95 × 12.70 × 3.17  | 4     | 1030      |
+| 1x5 Girder  | 63.65 × 12.70 × 3.17  | 5     | 1234      |
+| 1x6 Girder  | 76.57 × 12.70 × 3.17  | 6     | 1648      |
+| 1x7 Girder  | 89.27 × 12.70 × 3.17  | 7     | 1856      |
+| 1x8 Girder  | 101.97 × 12.70 × 3.17 | 8     | 2056      |
+| 1x9 Girder  | 114.67 × 12.70 × 3.17 | 9     | 2254      |
+| 1x10 Girder | 127.37 × 12.70 × 3.17 | 10    | 2460      |
+| 1x11 Girder | 140.07 × 12.70 × 3.17 | 11    | 2664      |
+| 1x12 Girder | 152.77 × 12.70 × 3.17 | 12    | 2852      |
+| 1x2 Brace   | 12.70 × 31.54 × 18.84 | 3     | 1002      |
+| H-Brace     | 38.25 × 12.70 × 31.82 | 4     | 1484      |
+| V-Brace     | 25.55 × 12.78 × 31.82 | 4     | 1154      |
+| L-Brace     | 31.54 × 12.70 × 31.54 | 4     | 1030      |
+| S-Brace     | 18.84 × 12.70 × 18.84 | 2     | 628       |
+| Team Plate  | 50.95 × 12.70 × 3.17  | 2     | 4076      |
+| 2x2 Panel   | 25.47 × 25.40 × 3.17  | 4     | 1368      |
+| 2x3 Panel   | 25.47 × 38.10 × 3.17  | 6     | 1638      |
 
-- **File:** `l-bracket.stl` (38,544 bytes, 260 triangles)
-- **Source:** https://github.com/azdle/printables/blob/master/l-bracket/l-bracket.stl
-- **Licence:** CC0 1.0 (see above)
-- **What it is:** a small L-bracket for holding two things
-  perpendicular — an L-shaped brace.
-- **Imported size:** 22.00 × 16.00 × 32.00 mm
-- **Through-holes, verified by mesh genus:** 1 (the mesh has 3
-  non-manifold edges, so it is slightly imperfect; it loads and
-  renders, and it is temporary)
-- **Note:** the L-Brace hole count is not established in the spec, so
-  the panel shows "holes: ?" for it, as for every other brace.
+Girder lengths follow N × 12.7 + 0.15 mm. The brace and Team Plate
+hole counts (previously unknown — the spec never states them) come
+from the recovered geometry and are confirmed independently by the
+mesh genus: a solid with N through-holes has genus N.
 
-## Pieces hidden from the Shapes panel
+## holes.json
 
-Only pieces with a model file are listed in the Shapes panel (see
-`hasModelFile` in `src/app/library.ts`): the three stand-ins above,
-plus anything imported in the session. The other **14 spec pieces**
-(1x4, 1x5, 1x7, 1x8, 1x9, 1x10, 1x11, 1x12 Girders; 1x2, H-, V-,
-S-Braces; Team Plate, 2x3 Panel) have no STL yet, so they do not
-appear in the UI at all — no greyed-out rows, no "STL needed"
-entries. Their spec data (names, colours, known hole counts) is
-unchanged in the library, so a piece reappears in the panel as soon
-as its STL is supplied — no other change needed.
+`holes.json` lists every hole (centre, axis, radius) per piece id, in
+the app's Y-up frame — the source-frame values rotated -90° about X.
+It is a sidecar for future milestones (hole snapping, screws); the app
+does not read it yet.
 
-## Not used
+## What used to be here
 
-Two other files were downloaded and measured during the search and
-rejected — recorded here so nobody re-does the search:
-
-- `perforated_plate.stl` from https://github.com/Danfoa/invite-robotics
-  (MIT licence): a Gazebo/ROS mesh in **metres** (1.2 × 0.0128 × 0.6),
-  with **no through-holes** (genus 0). Unusable at the app's 1 unit =
-  1 mm scale without rescaling, which the plan forbids.
-- `structure.stl` from the same repo (MIT): a 20 MB whole-lab
-  structure, not a piece.
-- Thingiverse and Printables model pages could not be downloaded from
-  this machine (Thingiverse returns 403; printables.com returns empty
-  replies), so only GitHub-hosted files with clear licences were used.
+Three temporary CC0 stand-ins from
+https://github.com/azdle/printables (an APU rack mount standing in for
+the 1x6 Girder, a PC-board mount for the 2x2 Panel, an L-bracket for
+the L-Brace) were bundled while the real pieces were unavailable.
+They were deleted when the real STLs landed — nothing in the app
+references them.
