@@ -1,7 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import apuRackMount from '../../public/library/apu-rack-mount.stl?raw';
-import pcBoardMount from '../../public/library/pc-board-mount.stl?raw';
 import { createPlacedPiece } from '../app/design';
 import type { LibraryPiece } from '../app/library';
 import { createDesignScene } from './designScene';
@@ -9,18 +9,25 @@ import { registerGeometry } from './libraryGeometry';
 import { parsePieceGeometry } from './loadPieceFile';
 import { findVerticalThroughHoles, snapToAlignedHole } from './holeSnapping';
 
-function loadStandIn(contents: string, file: string) {
-  const bytes = new TextEncoder().encode(contents);
-  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-  return parsePieceGeometry(buffer, file);
+/**
+ * Load a bundled library STL (binary — `?raw` imports would corrupt
+ * it, since they round-trip through UTF-8 text) through the same
+ * loader path the app uses for bundled pieces.
+ */
+function loadBundled(file: string) {
+  const buffer = readFileSync(
+    fileURLToPath(new URL(`../../public/library/${file}`, import.meta.url)),
+  );
+  const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  return parsePieceGeometry(arrayBuffer, file, { assumeZUp: true });
 }
 
 describe('hole detection and snapping', () => {
-  it('detects the through-holes in bundled flat stand-ins', () => {
-    const girder = loadStandIn(apuRackMount, 'apu-rack-mount.stl');
-    const panel = loadStandIn(pcBoardMount, 'pc-board-mount.stl');
-    expect(findVerticalThroughHoles(girder.geometry)).toHaveLength(5);
-    expect(findVerticalThroughHoles(panel.geometry)).toHaveLength(7);
+  it('detects the through-holes in bundled flat pieces', () => {
+    const girder = loadBundled('girder-1x6.stl');
+    const panel = loadBundled('plate-2x2.stl');
+    expect(findVerticalThroughHoles(girder.geometry)).toHaveLength(6);
+    expect(findVerticalThroughHoles(panel.geometry)).toHaveLength(4);
     girder.geometry.dispose();
     panel.geometry.dispose();
   });
@@ -91,7 +98,7 @@ describe('hole detection and snapping', () => {
   });
 
   it('shows green markers for aligned imported holes and snaps in the scene', () => {
-    const loaded = loadStandIn(apuRackMount, 'apu-rack-mount.stl');
+    const loaded = loadBundled('girder-1x6.stl');
     registerGeometry('hole-scene-test', loaded.geometry);
     const libraryPiece: LibraryPiece = {
       id: 'test-beam',
@@ -99,7 +106,7 @@ describe('hole detection and snapping', () => {
       category: 'girders',
       colourName: 'White',
       colourHex: '#FFFFFF',
-      holeCount: 5,
+      holeCount: 6,
       sizeMm: loaded.sizeMm,
       source: 'import',
       geometryId: 'hole-scene-test',

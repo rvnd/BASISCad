@@ -53,10 +53,15 @@ export function measureGeometry(geometry: THREE.BufferGeometry): PieceSizeMm {
  * Lay a Z-up geometry flat: when the bounding box is thinnest along Z
  * (the usual 3D-printing orientation), rotate -90° about X so the
  * thickness runs along Y. Size is unchanged.
+ *
+ * A Z-up file whose bounding box is NOT thinnest along Z — the
+ * braces, whose arms stand up in Z — is left alone by this heuristic,
+ * so it would load on its side. Bundled library pieces are known to
+ * be Z-up (see `assumeZUp`), so they always get the rotation.
  */
-export function orientFlat(geometry: THREE.BufferGeometry): void {
+export function orientFlat(geometry: THREE.BufferGeometry, assumeZUp = false): void {
   const size = measureGeometry(geometry);
-  if (size.z < size.x && size.z < size.y) {
+  if (assumeZUp || (size.z < size.x && size.z < size.y)) {
     geometry.rotateX(-Math.PI / 2);
   }
 }
@@ -114,8 +119,18 @@ function checkGeometry(geometry: THREE.BufferGeometry): void {
  * Parse raw file data (ArrayBuffer for .stl, text for .obj is decoded
  * from the buffer) into an oriented, normalised geometry plus its size.
  * Throws an Error with a plain message when the data cannot be used.
+ *
+ * `options.assumeZUp` — the file is known to be Z-up (the
+ * 3D-printing convention), so always rotate it flat instead of
+ * guessing from the bounding box. Used for the bundled library
+ * pieces, whose braces stand up in Z and would otherwise load on
+ * their side. User imports keep the bounding-box heuristic.
  */
-export function parsePieceGeometry(data: ArrayBuffer, fileName: string): LoadedPieceGeometry {
+export function parsePieceGeometry(
+  data: ArrayBuffer,
+  fileName: string,
+  options: { assumeZUp?: boolean } = {},
+): LoadedPieceGeometry {
   const lower = fileName.toLowerCase();
   let geometry: THREE.BufferGeometry;
   if (lower.endsWith('.stl')) {
@@ -126,7 +141,7 @@ export function parsePieceGeometry(data: ArrayBuffer, fileName: string): LoadedP
     throw new Error('Only .stl and .obj files can be imported.');
   }
   checkGeometry(geometry);
-  orientFlat(geometry);
+  orientFlat(geometry, options.assumeZUp ?? false);
   normaliseGeometryPosition(geometry);
   return { geometry, sizeMm: measureGeometry(geometry) };
 }
@@ -141,14 +156,15 @@ export async function loadPieceGeometry(file: File): Promise<LoadedPieceGeometry
 }
 
 /**
- * Load a .stl or .obj file from a URL (used for the bundled temporary
- * stand-in STLs in `public/library/`). Throws when the fetch fails or
- * the file cannot be used.
+ * Load a .stl or .obj file from a URL (used for the bundled library
+ * STLs in `public/library/`). Throws when the fetch fails or the file
+ * cannot be used. Bundled library files are Z-up by construction, so
+ * they are always rotated flat.
  */
 export async function loadPieceGeometryFromUrl(url: string): Promise<LoadedPieceGeometry> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Could not load ${url} (${response.status}).`);
   }
-  return parsePieceGeometry(await response.arrayBuffer(), url);
+  return parsePieceGeometry(await response.arrayBuffer(), url, { assumeZUp: true });
 }

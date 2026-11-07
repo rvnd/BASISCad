@@ -8,7 +8,7 @@ import type { SingleSelection } from './components/MoveRotatePanel.tsx';
 import ShapesPanel from './components/ShapesPanel.tsx';
 import ViewControls from './components/ViewControls.tsx';
 import Viewport from './components/Viewport.tsx';
-import { PIECE_COLOURS, SPEC_PIECES, isPieceReady, standInPieces } from './app/library';
+import { PIECE_COLOURS, SPEC_PIECES, bundledPieces, isPieceReady } from './app/library';
 import type { LibraryPiece, PieceCategory, PieceSizeMm } from './app/library';
 import {
   addPiecesRotation,
@@ -139,18 +139,18 @@ export default function App() {
   const placedCounter = useRef(0);
   const lastHistoryPresentRef = useRef(placed);
 
-  // Load the bundled temporary stand-in STLs (see
-  // public/library/LIBRARY_SOURCES.md). A stand-in that fails to load
+  // Load the bundled library STLs (see
+  // public/library/LIBRARY_SOURCES.md). A file that fails to load
   // simply leaves its piece unplaceable.
   useEffect(() => {
     let cancelled = false;
-    for (const piece of standInPieces()) {
-      if (piece.standIn === undefined) {
+    for (const piece of bundledPieces()) {
+      if (piece.bundledFile === undefined) {
         continue;
       }
-      const standIn = piece.standIn;
-      const geometryId = `standin-${piece.id}`;
-      loadPieceGeometryFromUrl(`${import.meta.env.BASE_URL}${standIn.file}`)
+      const bundledFile = piece.bundledFile;
+      const geometryId = `bundled-${piece.id}`;
+      loadPieceGeometryFromUrl(`${import.meta.env.BASE_URL}${bundledFile.file}`)
         .then((loaded) => {
           if (cancelled) {
             return;

@@ -2,24 +2,27 @@
  * The piece library — the 17 reusable pieces from the prototype, plus
  * pieces the user imports from STL/OBJ files.
  *
- * The 17 spec pieces have NO geometry in the repo: their STLs are
- * uncollected (Milestone 2's blocking step). Nothing here invents a
- * shape for them, and nothing guesses a hole count the spec does not
- * establish. A spec piece is listed with its name, category, colour,
- * and known hole count — or `holeCount: null` when the count is not
- * established — and its status is `stl-needed` until its STL is
- * imported. Only pieces with real geometry (imported in this session)
- * are `ready` and placeable.
+ * All 17 spec pieces now have real geometry: bundled STL files in
+ * `public/library/`, recovered from the prototype's own geometry
+ * (see `public/library/LIBRARY_SOURCES.md` and
+ * `scripts/generate-library-stls/`). Each entry records its name,
+ * category, colour, hole count, and size — all established from the
+ * recovered geometry, never guessed:
  *
- * Hole counts the spec actually establishes:
- * - a 1xN girder has N holes (the 1x4 girder costs $4 at $1/hole);
- * - the 2x2 Panel has 4 holes and the 2x3 Panel has 6 holes.
- * Brace hole counts and the Team Plate's hole count are NOT established
- * anywhere in the prototype transcript, so they are `null` here.
+ * - a 1xN girder has N holes; girder lengths step 12.7 mm per hole
+ *   (1x4 is 50.95 mm long, 1x12 is 152.77 mm), all 12.70 mm wide
+ *   and 3.175 mm thick;
+ * - hole diameter is 4.196 mm (radius 2.098 mm) on every hole, which
+ *   clears a #6-32 screw (3.505 mm across);
+ * - the braces and Team Plate hole counts come from the recovered
+ *   geometry (verified by mesh genus): 1x2 Brace 3, H-Brace 4,
+ *   V-Brace 4, L-Brace 4, S-Brace 2, Team Plate 2.
  *
- * Sizes: only the 1x4 Girder's size is established (50.95 x 12.70 x
- * 3.175 mm). Every other piece's size is `null` until its STL arrives.
- * Imported pieces get their size from their geometry's bounding box.
+ * Sizes are in millimetres in the app's Y-up frame: x (length),
+ * y (thickness/height), z (width). Imported pieces get their size
+ * from their geometry's bounding box. A piece whose hole count or
+ * size is not established (only user imports, never a spec piece)
+ * uses `null` — never a guess.
  *
  * Colours are the named colours from the prototype table, as standard
  * hex values. The red girder uses the brand red (#D03F43). These are
@@ -60,26 +63,21 @@ export interface PieceSizeMm {
 }
 
 /**
- * A temporary stand-in STL for a spec piece, from the internet (see
- * `public/library/LIBRARY_SOURCES.md`). The file is bundled with the
- * site and loaded at startup; the piece stays "STL needed" until its
- * real STL arrives, and the stand-in is replaced then.
+ * A bundled STL file for a spec piece, in `public/library/` — see
+ * `public/library/LIBRARY_SOURCES.md` for provenance.
  */
-export interface StandInSource {
-  /** Path under `public/`, e.g. 'library/apu-rack-mount.stl'. */
+export interface BundledFile {
+  /** Path under `public/`, e.g. 'library/girder-1x4.stl'. */
   file: string;
-  /** Where the file came from. */
-  sourceUrl: string;
-  /** Licence of the file, e.g. 'CC0 1.0'. */
-  licence: string;
 }
 
 /**
  * One entry in the library. `source: 'spec'` entries are the 17 pieces
- * from the prototype and have no geometry until their STL is imported
- * (`geometryId` is null). `source: 'import'` entries were loaded from a
- * user file in this session; their geometry lives in the geometry
- * registry (`src/three/libraryGeometry.ts`) under `geometryId`.
+ * from the prototype; each has a bundled STL (`bundledFile`) loaded at
+ * startup, and `geometryId` is set once it has loaded. `source:
+ * 'import'` entries were loaded from a user file in this session;
+ * their geometry lives in the geometry registry
+ * (`src/three/libraryGeometry.ts`) under `geometryId`.
  */
 export interface LibraryPiece {
   id: string;
@@ -94,8 +92,8 @@ export interface LibraryPiece {
   source: 'spec' | 'import';
   /** Key into the geometry registry, or null when there is no geometry. */
   geometryId: string | null;
-  /** Temporary stand-in file, if this piece has one; undefined otherwise. */
-  standIn?: StandInSource;
+  /** Bundled STL file, if this piece has one; undefined otherwise. */
+  bundledFile?: BundledFile;
 }
 
 /** True when the piece has geometry and can be placed on the workplane. */
@@ -104,20 +102,19 @@ export function isPieceReady(piece: LibraryPiece): boolean {
 }
 
 /**
- * True when the piece has a model file available: a bundled
- * stand-in STL, or geometry imported in this session. The Shapes
- * panel lists only these pieces — a spec piece with no model file is
- * hidden from the UI until its STL arrives, and shows up again as
- * soon as it has one. The underlying 17-piece spec data stays
- * intact (hole counts, colours, categories) either way.
+ * True when the piece has a model file available: a bundled STL, or
+ * geometry imported in this session. The Shapes panel lists only
+ * these pieces. All 17 spec pieces have a bundled file, so all 17
+ * are listed.
  */
 export function hasModelFile(piece: LibraryPiece): boolean {
-  return piece.standIn !== undefined || piece.geometryId !== null;
+  return piece.bundledFile !== undefined || piece.geometryId !== null;
 }
 
 /** The 17 spec pieces, in the prototype's order, grouped by category. */
 export const SPEC_PIECES: readonly LibraryPiece[] = [
-  // Girders (9): a 1xN girder has N holes.
+  // Girders (9): a 1xN girder has N holes; all 12.70 mm wide,
+  // 3.175 mm thick, length stepping 12.7 mm per hole.
   {
     id: 'girder-1x4',
     name: '1x4 Girder',
@@ -128,6 +125,7 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     sizeMm: { x: 50.95, y: 3.175, z: 12.7 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/girder-1x4.stl' },
   },
   {
     id: 'girder-1x5',
@@ -136,9 +134,10 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Orange',
     colourHex: '#FF7F00',
     holeCount: 5,
-    sizeMm: null,
+    sizeMm: { x: 63.65, y: 3.175, z: 12.7 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/girder-1x5.stl' },
   },
   {
     id: 'girder-1x6',
@@ -147,16 +146,10 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Yellow',
     colourHex: '#FFD500',
     holeCount: 6,
-    // Temporary stand-in size, as imported (see LIBRARY_SOURCES.md).
-    sizeMm: { x: 178, y: 8, z: 51.4 },
+    sizeMm: { x: 76.57, y: 3.175, z: 12.7 },
     source: 'spec',
     geometryId: null,
-    standIn: {
-      file: 'library/apu-rack-mount.stl',
-      sourceUrl:
-        'https://github.com/azdle/printables/blob/master/rack-mount-stuff/apu-rack-mount.stl',
-      licence: 'CC0 1.0',
-    },
+    bundledFile: { file: 'library/girder-1x6.stl' },
   },
   {
     id: 'girder-1x7',
@@ -165,9 +158,10 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Green',
     colourHex: '#2FA84F',
     holeCount: 7,
-    sizeMm: null,
+    sizeMm: { x: 89.27, y: 3.175, z: 12.7 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/girder-1x7.stl' },
   },
   {
     id: 'girder-1x8',
@@ -176,9 +170,10 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Grey',
     colourHex: '#808080',
     holeCount: 8,
-    sizeMm: null,
+    sizeMm: { x: 101.97, y: 3.175, z: 12.7 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/girder-1x8.stl' },
   },
   {
     id: 'girder-1x9',
@@ -187,9 +182,10 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Blue',
     colourHex: '#1E6FD9',
     holeCount: 9,
-    sizeMm: null,
+    sizeMm: { x: 114.67, y: 3.175, z: 12.7 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/girder-1x9.stl' },
   },
   {
     id: 'girder-1x10',
@@ -198,9 +194,10 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Black',
     colourHex: '#000000',
     holeCount: 10,
-    sizeMm: null,
+    sizeMm: { x: 127.37, y: 3.175, z: 12.7 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/girder-1x10.stl' },
   },
   {
     id: 'girder-1x11',
@@ -209,9 +206,10 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Purple',
     colourHex: '#7B2FBE',
     holeCount: 11,
-    sizeMm: null,
+    sizeMm: { x: 140.07, y: 3.175, z: 12.7 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/girder-1x11.stl' },
   },
   {
     id: 'girder-1x12',
@@ -220,21 +218,23 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Red',
     colourHex: '#D03F43',
     holeCount: 12,
-    sizeMm: null,
+    sizeMm: { x: 152.77, y: 3.175, z: 12.7 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/girder-1x12.stl' },
   },
-  // Braces (5): hole counts are NOT established — null, never guessed.
+  // Braces (5): hole counts from the recovered geometry (mesh genus).
   {
     id: 'brace-1x2',
     name: '1x2 Brace',
     category: 'braces',
     colourName: 'Grey',
     colourHex: '#808080',
-    holeCount: null,
-    sizeMm: null,
+    holeCount: 3,
+    sizeMm: { x: 12.7, y: 18.84, z: 31.54 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/brace-1x2.stl' },
   },
   {
     id: 'brace-h',
@@ -242,10 +242,11 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     category: 'braces',
     colourName: 'White',
     colourHex: '#FFFFFF',
-    holeCount: null,
-    sizeMm: null,
+    holeCount: 4,
+    sizeMm: { x: 38.25, y: 31.82, z: 12.7 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/brace-h.stl' },
   },
   {
     id: 'brace-v',
@@ -253,10 +254,11 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     category: 'braces',
     colourName: 'Green',
     colourHex: '#2FA84F',
-    holeCount: null,
-    sizeMm: null,
+    holeCount: 4,
+    sizeMm: { x: 25.55, y: 31.82, z: 12.78 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/brace-v.stl' },
   },
   {
     id: 'brace-l',
@@ -264,16 +266,11 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     category: 'braces',
     colourName: 'Red',
     colourHex: '#D03F43',
-    holeCount: null,
-    // Temporary stand-in size, as imported (see LIBRARY_SOURCES.md).
-    sizeMm: { x: 22, y: 16, z: 32 },
+    holeCount: 4,
+    sizeMm: { x: 31.54, y: 31.54, z: 12.7 },
     source: 'spec',
     geometryId: null,
-    standIn: {
-      file: 'library/l-bracket.stl',
-      sourceUrl: 'https://github.com/azdle/printables/blob/master/l-bracket/l-bracket.stl',
-      licence: 'CC0 1.0',
-    },
+    bundledFile: { file: 'library/brace-l.stl' },
   },
   {
     id: 'brace-s',
@@ -281,22 +278,24 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     category: 'braces',
     colourName: 'Blue',
     colourHex: '#1E6FD9',
-    holeCount: null,
-    sizeMm: null,
+    holeCount: 2,
+    sizeMm: { x: 18.84, y: 18.84, z: 12.7 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/brace-s.stl' },
   },
-  // Plates (3): 2x2 has 4 holes, 2x3 has 6; the Team Plate is unknown.
+  // Plates (3): 2x2 has 4 holes, 2x3 has 6, Team Plate has 2.
   {
     id: 'plate-team',
     name: 'Team Plate',
     category: 'plates',
     colourName: 'Gold',
     colourHex: '#D4AF37',
-    holeCount: null,
-    sizeMm: null,
+    holeCount: 2,
+    sizeMm: { x: 50.95, y: 3.175, z: 12.7 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/plate-team.stl' },
   },
   {
     id: 'plate-2x2',
@@ -305,15 +304,10 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Red',
     colourHex: '#D03F43',
     holeCount: 4,
-    // Temporary stand-in size, as imported (see LIBRARY_SOURCES.md).
-    sizeMm: { x: 48, y: 5, z: 91 },
+    sizeMm: { x: 25.47, y: 3.175, z: 25.4 },
     source: 'spec',
     geometryId: null,
-    standIn: {
-      file: 'library/pc-board-mount.stl',
-      sourceUrl: 'https://github.com/azdle/printables/blob/master/unsorted/pc-board-mount.stl',
-      licence: 'CC0 1.0',
-    },
+    bundledFile: { file: 'library/plate-2x2.stl' },
   },
   {
     id: 'plate-2x3',
@@ -322,24 +316,21 @@ export const SPEC_PIECES: readonly LibraryPiece[] = [
     colourName: 'Red',
     colourHex: '#D03F43',
     holeCount: 6,
-    sizeMm: null,
+    sizeMm: { x: 25.47, y: 3.175, z: 38.1 },
     source: 'spec',
     geometryId: null,
+    bundledFile: { file: 'library/plate-2x3.stl' },
   },
 ];
 
-/** The 17 spec pieces that still need their STL collected. */
+/** Spec pieces with no bundled STL — none right now; all 17 are bundled. */
 export function missingStlPieces(): readonly LibraryPiece[] {
-  return SPEC_PIECES.filter((piece) => piece.geometryId === null);
+  return SPEC_PIECES.filter((piece) => piece.bundledFile === undefined);
 }
 
-/**
- * Spec pieces with a temporary stand-in file. The stand-in gives the
- * piece geometry to demo with, but the real STL is still missing —
- * these pieces are still in `missingStlPieces()` until it arrives.
- */
-export function standInPieces(): readonly LibraryPiece[] {
-  return SPEC_PIECES.filter((piece) => piece.standIn !== undefined);
+/** Spec pieces with a bundled STL file (all 17). */
+export function bundledPieces(): readonly LibraryPiece[] {
+  return SPEC_PIECES.filter((piece) => piece.bundledFile !== undefined);
 }
 
 /** Pieces in one category, in library order. */

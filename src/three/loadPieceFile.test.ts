@@ -107,6 +107,27 @@ describe('loadPieceFile', () => {
     expect(measureGeometry(flat)).toEqual({ x: 20, y: 5, z: 10 });
     flat.dispose();
   });
+
+  it('rotates a Z-up brace flat only when assumeZUp is set', () => {
+    // A brace stands up in Z: its bounding box is not thinnest along
+    // Z, so the bounding-box heuristic alone leaves it on its side.
+    // Bundled library pieces are known to be Z-up, so they pass
+    // assumeZUp and always get the rotation.
+    const brace = new THREE.BoxGeometry(31.54, 12.7, 31.54);
+    orientFlat(brace);
+    // BoxGeometry stores float32, so 31.54 comes back as 31.5400009… —
+    // compare approximately.
+    const flatSize = measureGeometry(brace);
+    expect(flatSize.x).toBeCloseTo(31.54);
+    expect(flatSize.y).toBeCloseTo(12.7);
+    expect(flatSize.z).toBeCloseTo(31.54);
+    orientFlat(brace, true);
+    const size = measureGeometry(brace);
+    expect(size.x).toBeCloseTo(31.54);
+    expect(size.y).toBeCloseTo(31.54);
+    expect(size.z).toBeCloseTo(12.7);
+    brace.dispose();
+  });
 });
 
 describe('pieces', () => {

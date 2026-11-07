@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   PIECE_CATEGORIES,
   SPEC_PIECES,
+  bundledPieces,
   hasModelFile,
   holeCountLabel,
   isPieceReady,
   missingStlPieces,
   piecesInCategory,
-  standInPieces,
 } from './library';
 
 describe('library', () => {
@@ -34,61 +34,57 @@ describe('library', () => {
     expect(girders.map((piece) => piece.holeCount)).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12]);
   });
 
-  it('gives the panels their hole counts and leaves the Team Plate unknown', () => {
+  it('gives every brace and plate its hole count, from the recovered geometry', () => {
+    const braces = piecesInCategory(SPEC_PIECES, 'braces');
+    // 1x2 Brace 3, H-Brace 4, V-Brace 4, L-Brace 4, S-Brace 2.
+    expect(braces.map((piece) => piece.holeCount)).toEqual([3, 4, 4, 4, 2]);
     const plates = piecesInCategory(SPEC_PIECES, 'plates');
-    expect(plates.map((piece) => piece.holeCount)).toEqual([null, 4, 6]);
+    // Team Plate 2, 2x2 Panel 4, 2x3 Panel 6.
+    expect(plates.map((piece) => piece.holeCount)).toEqual([2, 4, 6]);
   });
 
-  it('does not guess brace hole counts', () => {
-    for (const brace of piecesInCategory(SPEC_PIECES, 'braces')) {
-      expect(brace.holeCount).toBeNull();
-    }
-  });
-
-  it('records the 1x4 girder size and leaves sizes unknown except for the stand-ins', () => {
-    const girder1x4 = SPEC_PIECES.find((piece) => piece.id === 'girder-1x4');
-    expect(girder1x4?.sizeMm).toEqual({ x: 50.95, y: 3.175, z: 12.7 });
-    const withSize = SPEC_PIECES.filter((piece) => piece.sizeMm !== null).map((piece) => piece.id);
-    // The 1x4 (spec) plus the three temporary stand-ins, whose sizes
-    // are recorded as imported.
-    expect(withSize).toEqual(['girder-1x4', 'girder-1x6', 'brace-l', 'plate-2x2']);
-  });
-
-  it('has three temporary stand-ins, all CC0, all still missing their real STL', () => {
-    const standIns = standInPieces();
-    expect(standIns.map((piece) => piece.id)).toEqual(['girder-1x6', 'brace-l', 'plate-2x2']);
-    for (const piece of standIns) {
-      expect(piece.standIn?.licence).toBe('CC0 1.0');
-      expect(piece.standIn?.file).toMatch(/^library\/.*\.stl$/);
-      expect(piece.geometryId).toBeNull();
-      expect(isPieceReady(piece)).toBe(false);
-    }
-    expect(missingStlPieces()).toHaveLength(17);
-  });
-
-  it('marks all 17 spec pieces as missing their STL', () => {
-    expect(missingStlPieces()).toHaveLength(17);
+  it('records every piece size in the app Y-up frame', () => {
+    const byId = new Map(SPEC_PIECES.map((piece) => [piece.id, piece]));
+    expect(byId.get('girder-1x4')?.sizeMm).toEqual({ x: 50.95, y: 3.175, z: 12.7 });
+    expect(byId.get('girder-1x12')?.sizeMm).toEqual({ x: 152.77, y: 3.175, z: 12.7 });
+    // Braces stand up: their height (y) is the arm length, not the thickness.
+    expect(byId.get('brace-l')?.sizeMm).toEqual({ x: 31.54, y: 31.54, z: 12.7 });
+    expect(byId.get('plate-2x3')?.sizeMm).toEqual({ x: 25.47, y: 3.175, z: 38.1 });
     for (const piece of SPEC_PIECES) {
+      expect(piece.sizeMm).not.toBeNull();
+      expect(piece.holeCount).not.toBeNull();
+    }
+  });
+
+  it('bundles an STL file for all 17 spec pieces — none is missing', () => {
+    expect(bundledPieces()).toHaveLength(17);
+    for (const piece of bundledPieces()) {
+      expect(piece.bundledFile?.file).toMatch(/^library\/.*\.stl$/);
       expect(piece.geometryId).toBeNull();
       expect(isPieceReady(piece)).toBe(false);
     }
+    expect(missingStlPieces()).toHaveLength(0);
   });
 
   it('labels known and unknown hole counts honestly', () => {
     const girder1x4 = SPEC_PIECES.find((piece) => piece.id === 'girder-1x4');
-    const hBrace = SPEC_PIECES.find((piece) => piece.id === 'brace-h');
     expect(girder1x4 === undefined ? '' : holeCountLabel(girder1x4)).toBe('4 holes');
-    expect(hBrace === undefined ? '' : holeCountLabel(hBrace)).toBe('holes: ?');
+    const imported = {
+      id: 'imported-1',
+      name: 'Imported piece',
+      category: 'girders' as const,
+      colourName: 'Grey',
+      colourHex: '#808080',
+      holeCount: null,
+      sizeMm: { x: 10, y: 2, z: 5 },
+      source: 'import' as const,
+      geometryId: null,
+    };
+    expect(holeCountLabel(imported)).toBe('holes: ?');
   });
 
-  it('has a model file only for the three stand-ins — the Shapes panel lists just these', () => {
-    const withFile = SPEC_PIECES.filter(hasModelFile).map((piece) => piece.id);
-    expect(withFile).toEqual(['girder-1x6', 'brace-l', 'plate-2x2']);
-    // The other 14 spec pieces are hidden from the panel, not deleted:
-    // the 17-piece spec data above is unchanged.
-    expect(SPEC_PIECES).toHaveLength(17);
-    const girder1x4 = SPEC_PIECES.find((piece) => piece.id === 'girder-1x4');
-    expect(girder1x4 === undefined ? true : hasModelFile(girder1x4)).toBe(false);
+  it('has a model file for all 17 spec pieces — the Shapes panel lists all of them', () => {
+    expect(SPEC_PIECES.filter(hasModelFile)).toHaveLength(17);
   });
 
   it('counts an imported piece as having a model file once it has geometry', () => {
