@@ -3,7 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { getCameraView } from './cameraViews';
 import type { CameraViewId } from './cameraViews';
 import { createDesignScene } from './designScene';
-import type { PlacedPiece, RotationDeg, SelectionMode } from '../app/design';
+import type { PlacedPiece, PositionMm, RotationDeg, SelectionMode } from '../app/design';
+import type { HoleTarget } from './connectionHoles';
 import { normalizeAngleDeg } from '../app/rotation';
 import type { LibraryPiece } from '../app/library';
 import { createFramingCamera, createWorkplane } from './workplane';
@@ -25,6 +26,8 @@ import type { RotationAxis } from './rotationHandles';
  */
 
 export interface ViewportHandle {
+  setHoleMarkersEnabled(enabled: boolean): void;
+  cameraPosition(): PositionMm;
   dispose(): void;
   /** Move the camera to a named view (Top / Front / … / 3D), looking at the workplane centre. */
   setView(viewId: CameraViewId): void;
@@ -54,6 +57,7 @@ export interface ViewportHandle {
  * instead of jumping so its centre is under the cursor.
  */
 export interface ViewportDesignCallbacks {
+  onHoleTargets?(targets: readonly HoleTarget[]): void;
   onAlignmentChange?(count: number): void;
   onBeginEdit(): void;
   onEndEdit(): void;
@@ -163,6 +167,12 @@ export function createViewport(
   const ROTATE_DRAG_DEGREES_PER_PX = 0.5;
   let selectionMode: SelectionMode = 'move';
   let holeSnappingEnabled = true;
+  let holePicking = false;
+  let holesDirty = true;
+  let lastHolesUpdate = 0;
+  controls.addEventListener('change', () => {
+    holesDirty = true;
+  });
   /** The handle the pointer currently hovers, if any — for highlight + cursor. */
   let hoveredHandle: RotationAxis | null = null;
   let downAt: { x: number; y: number } | null = null;
@@ -248,6 +258,7 @@ export function createViewport(
   };
 
   const onPointerDown = (event: PointerEvent): void => {
+    if (holePicking) return;
     downAt = { x: event.clientX, y: event.clientY };
     moved = false;
     gesture = null;
@@ -414,6 +425,7 @@ export function createViewport(
   renderer.domElement.addEventListener('pointerleave', clearHandleHover);
 
   const resize = (): void => {
+    holesDirty = true;
     const width = container.clientWidth;
     const height = container.clientHeight;
     if (width === 0 || height === 0) {
@@ -436,6 +448,13 @@ export function createViewport(
     animationFrame = requestAnimationFrame(tick);
     controls.update();
     renderer.render(scene, camera);
+    const now = performance.now();
+    if (holePicking && holesDirty && now - lastHolesUpdate > 100) {
+      holesDirty = false;
+      lastHolesUpdate = now;
+      const rect = renderer.domElement.getBoundingClientRect();
+      designCallbacks?.onHoleTargets?.(designScene.holeTargets(camera, rect.width, rect.height));
+    }
   };
   tick();
 
@@ -468,6 +487,15 @@ export function createViewport(
   };
 
   return {
+    setHoleMarkersEnabled(enabled): void {
+      holePicking = enabled;
+      holesDirty = true;
+      designScene.setHandlesEnabled(!enabled && selectionMode === 'rotate');
+      if (!enabled) designCallbacks?.onHoleTargets?.([]);
+    },
+    cameraPosition(): PositionMm {
+      return { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+    },
     setView(viewId: CameraViewId): void {
       applyView(viewId);
     },
@@ -486,6 +514,7 @@ export function createViewport(
       selectedIds: readonly string[],
     ): void {
       designScene.sync(placed, library, selectedIds);
+      holesDirty = true;
       designCallbacks?.onAlignmentChange?.(designScene.alignedHoleCount());
     },
     setSelectionMode(mode: SelectionMode): void {
@@ -494,7 +523,7 @@ export function createViewport(
       // would silently rotate a piece the user was trying to move.
       // setHandlesEnabled re-evaluates from the last sync, so the
       // handles appear the moment Rotate mode is entered.
-      designScene.setHandlesEnabled(mode === 'rotate');
+      designScene.setHandlesEnabled(!holePicking && mode === 'rotate');
     },
     setHoleSnappingEnabled(enabled: boolean): void {
       holeSnappingEnabled = enabled;

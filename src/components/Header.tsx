@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { BRAND_RED } from '../app/constants';
 
 interface HeaderProps {
+  tools?: ReactNode;
   designName: string;
   canUndo: boolean;
   canRedo: boolean;
@@ -27,6 +29,7 @@ export default function Header({
   onOpen,
   onNew,
   onManage,
+  tools,
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -123,6 +126,7 @@ export default function Header({
           </button>
         </div>
       </div>
+      {tools}
       <span className="header-status" role="status">
         {saveStatus ?? 'Milestone 5 · local design'}
       </span>

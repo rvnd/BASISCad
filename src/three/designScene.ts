@@ -5,6 +5,9 @@ import { getGeometry } from './libraryGeometry';
 import { alignedHoleMarkers, snapToWorldHole, worldHolesForPiece } from './orientedHoles';
 import type { WorldHole } from './orientedHoles';
 import { rotationLift } from './pieceTransforms';
+import { fastenerGeometry } from './fastenerGeometry';
+import { projectHoleTargets } from './connectionHoles';
+import type { HoleTarget } from './connectionHoles';
 import type { HoleSnapResult } from './holeSnapping';
 import { createPieceMesh, disposePieceMesh } from './pieces';
 import {
@@ -48,6 +51,7 @@ import type { RotationAxis } from './rotationHandles';
  */
 
 export interface DesignScene {
+  holeTargets(camera: THREE.Camera, width: number, height: number): readonly HoleTarget[];
   sync(
     placed: readonly PlacedPiece[],
     library: readonly LibraryPiece[],
@@ -279,6 +283,16 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
   };
 
   return {
+    holeTargets(camera, width, height) {
+      return projectHoleTargets(
+        worldHoles,
+        lastPlaced,
+        new Map(lastLibrary.map((piece) => [piece.id, piece])),
+        camera,
+        width,
+        height,
+      );
+    },
     sync(
       placed: readonly PlacedPiece[],
       library: readonly LibraryPiece[],
@@ -293,18 +307,30 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       for (const placedPiece of placed) {
         seen.add(placedPiece.id);
         const libraryPiece = libraryById.get(placedPiece.libraryId);
-        const geometry =
-          libraryPiece?.geometryId === undefined || libraryPiece.geometryId === null
+        const geometry = placedPiece.fastener
+          ? fastenerGeometry(placedPiece)
+          : libraryPiece?.geometryId === undefined || libraryPiece.geometryId === null
             ? undefined
             : getGeometry(libraryPiece.geometryId);
-        if (libraryPiece === undefined || geometry === undefined) {
+        if ((!placedPiece.fastener && libraryPiece === undefined) || geometry === undefined) {
           continue;
         }
-        worldHoles.push(...worldHolesForPiece(placedPiece, libraryPiece, geometry));
+        if (libraryPiece && !placedPiece.fastener)
+          worldHoles.push(...worldHolesForPiece(placedPiece, libraryPiece, geometry));
         let object = byId.get(placedPiece.id);
+        if (object && object.userData.sourceGeometry !== geometry) {
+          group.remove(object);
+          disposePieceMesh(object);
+          byId.delete(placedPiece.id);
+          object = undefined;
+        }
         if (object === undefined) {
-          object = createPieceMesh(geometry, libraryPiece.colourHex);
+          object = createPieceMesh(
+            geometry,
+            placedPiece.fastener ? '#b6bbc1' : libraryPiece!.colourHex,
+          );
           object.userData.placedId = placedPiece.id;
+          object.userData.sourceGeometry = geometry;
           object.add(createSelectionBox(geometry));
           group.add(object);
           byId.set(placedPiece.id, object);

@@ -48,6 +48,99 @@ body {
   background: var(--brand-white);
 }
 
+.connect-controls {
+  position: relative;
+  display: flex;
+  gap: 2px;
+}
+.tool-button {
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  background: white;
+  padding: 7px;
+  cursor: pointer;
+}
+.tool-button[aria-pressed='true'] {
+  background: #fbe1e2;
+  border-color: #d03f43;
+}
+.connection-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 280px;
+  padding: 12px;
+  background: white;
+  color: #222;
+  border: 1px solid #bbb;
+  box-shadow: 0 4px 12px #0003;
+  z-index: 50;
+  display: grid;
+  gap: 12px;
+}
+.connection-options label {
+  display: flex;
+  gap: 8px;
+}
+.hole-picker,
+.hole-leaders {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.hole-picker {
+  z-index: 8;
+}
+.hole-leaders line {
+  stroke: #777;
+  stroke-width: 0.6;
+}
+.hole-target {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 1px solid #333;
+  border-radius: 50%;
+  background: #ffffffe6;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: crosshair;
+}
+.hole-target.occupied {
+  background: #ddd;
+}
+.hole-target[aria-pressed='true'],
+.hole-target:hover {
+  background: #e54d52;
+  border-color: #a00;
+}
+.hole-target:focus-visible {
+  outline: 2px solid #d03f43;
+  outline-offset: 2px;
+}
+.connection-hint,
+.connection-notice {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  margin: 0;
+  background: #fffffff2;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  font-size: 13px;
+  z-index: 9;
+  white-space: nowrap;
+}
+.connection-hint span {
+  color: #666;
+  margin-left: 8px;
+}
+
 /* Side columns — narrow, fixed width, so the viewport keeps the majority
    of the screen in the centre. */
 .side-column {

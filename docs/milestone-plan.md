@@ -2,7 +2,7 @@
 
 Source: the repository’s GitHub milestone issues. Complete each milestone’s acceptance checks with unit tests and browser interaction before advancing.
 
-Milestones 0–7 are complete. Local validation: `npm run test:e2e:local`.
+Milestones 0–8 are complete. Local validation: `npm run test:e2e:local`.
 
 ## Milestone 6 — Hole snapping with green rings
 
@@ -47,18 +47,20 @@ Goal: the easiest possible way to join pieces — pick a hole, pick another hole
 
 Steps:
 
-- [ ] Add a Connect control at the top of the screen. First click picks a hole on the piece to move; second click picks the hole it should join.
-- [ ] Show a marker for every hole while Connect is active — including holes that already hold a screw and holes on locked pieces — and spread overlapping markers apart so each one can be picked. Hovering a marker names its piece and hole number.
-- [ ] Keep the markers small, with thin outlines, so neighbouring holes stay separately clickable.
-- [ ] Show one marker per group of already-aligned holes, not one per piece, so a stack does not become a pile of markers.
-- [ ] On the second click, move only the piece that is not already attached to anything. An existing assembly stays where it is. A piece that is grouped but not screwed down still counts as unattached and can move on its own.
-- [ ] Place the first-picked piece in front of the second, from the current camera view.
-- [ ] Try more than one angle and orientation when the first attempt does not line the holes up, and try the next clear layer when a neighbouring piece blocks the first position.
-- [ ] Add Connection options for hard cases: Try either side, Try more angles, Allow moving the connected assembly, Retry the same holes, and Try best fit, which turns on all of them.
-- [ ] Keep collisions and the workplane floor in force throughout — an impossible overlap is still refused, with no instruction text box left on screen.
-- [ ] Make the whole connection a single undo step.
+- [x] Add a Connect control at the top of the screen. First click picks a hole on the piece to move; second click picks the hole it should join.
+- [x] Show a marker for every hole while Connect is active — including holes that already hold a screw and holes on locked pieces — and spread overlapping markers apart so each one can be picked. Hovering a marker names its piece and hole number.
+- [x] Keep the markers small, with thin outlines, so neighbouring holes stay separately clickable.
+- [x] Show one marker per group of already-aligned holes, not one per piece, so a stack does not become a pile of markers.
+- [x] On the second click, move only the piece that is not already attached to anything. An existing assembly stays where it is. A piece that is grouped but not screwed down still counts as unattached and can move on its own.
+- [x] Place the first-picked piece in front of the second, from the current camera view.
+- [x] Try more than one angle and orientation when the first attempt does not line the holes up, and try the next clear layer when a neighbouring piece blocks the first position.
+- [x] Add Connection options for hard cases: Try either side, Try more angles, Allow moving the connected assembly, Retry the same holes, and Try best fit, which turns on all of them.
+- [x] Keep collisions and the workplane floor in force throughout — an impossible overlap is still refused, with no instruction text box left on screen.
+- [x] Make the whole connection a single undo step.
 
 Done when: you can connect any two holes you pick — including a hole next to an existing screw, and a second connection on a piece that is already screwed to a third piece by swinging it around that screw — without moving the assembly it is joining.
+
+Verification: 182 unit tests, all 22 local Chrome browser tests, formatting, lint, typecheck, and production build passed. Browser flows cover a paired screw with one-step undo/redo, adjacent screws and saved connections, failed picks and retries, and a 90° hinge connection onto a locked assembly without moving its existing pieces or fasteners. Geometry tests cover upright and mixed orientations, blocked layers, floor rejection, and rigid movement of an assembly only when explicitly enabled. Direct website use confirmed camera-side placement, visible head/nut clearance, and rejection of an unpaired hole. Milestone 9 still adds automatic alignment prompts and the dedicated fastener picker.
 
 ## Milestone 9 — Screws and nuts, automatic
 

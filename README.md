@@ -150,7 +150,7 @@ without rewrites:
 
 ## Milestones
 
-Milestones 0–7 are implemented. Milestone 6 uses the library's 3D bore
+Milestones 0–8 are implemented. Milestone 6 uses the library's 3D bore
 metadata for snapping at any orientation, including upright girders and
 brace arms. It measures the actual wall around each hole, updates green
 rings on every aligned hole, and supports the 2 mm tolerance, Snap holes
@@ -159,6 +159,11 @@ Milestone 7 prevents solid overlap while allowing face contact and empty
 bores. Dragged pieces slide, climb across obstacles, and descend; typed
 moves and swept rotations obey the same floor and collision rules. New
 pieces start at a free position.
+
+Milestone 8 adds Connect: pick two hole markers, retry difficult placements,
+join next to an existing screw, and swing a singly screwed piece to its next
+connection. Existing assemblies stay fixed unless their movement is explicitly
+allowed. Screw/nut pairs and their hole references survive save and undo.
 
 The build follows the milestone plan in
 [`docs/milestone-plan.md`](docs/milestone-plan.md)

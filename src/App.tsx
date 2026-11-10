@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import AngleBadge from './components/AngleBadge.tsx';
 import Header from './components/Header.tsx';
+import ConnectControls from './components/ConnectControls';
+import HolePicker from './components/HolePicker';
 import ProjectDialog from './components/ProjectDialog.tsx';
 import type { ProjectDialogMode } from './components/ProjectDialog.tsx';
 import MoveRotatePanel from './components/MoveRotatePanel.tsx';
@@ -11,6 +13,11 @@ import Viewport from './components/Viewport.tsx';
 import { PIECE_COLOURS, SPEC_PIECES, bundledPieces, isPieceReady } from './app/library';
 import type { LibraryPiece, PieceCategory, PieceSizeMm } from './app/library';
 import { parseLibraryHoles } from './app/libraryHoles';
+import { fastenerName } from './app/connections';
+import type { HoleRef } from './app/connections';
+import type { HoleTarget } from './three/connectionHoles';
+import { connectPieces, DEFAULT_CONNECTION_OPTIONS } from './three/connectPieces';
+import { fastenStack } from './three/fastening';
 import {
   addPiecesRotation,
   centerDesign,
@@ -135,6 +142,30 @@ export default function App() {
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('move');
   const [snapHoles, setSnapHoles] = useState(true);
   const [alignedHoleCount, setAlignedHoleCount] = useState(0);
+  const [connecting, setConnecting] = useState(false);
+  const [firstHole, setFirstHole] = useState<readonly HoleRef[] | null>(null);
+  const [holeTargets, setHoleTargets] = useState<readonly HoleTarget[]>([]);
+  const [connectionOptions, setConnectionOptions] = useState(DEFAULT_CONNECTION_OPTIONS);
+  const [retryHoles, setRetryHoles] = useState<{
+    first: readonly HoleRef[];
+    second: readonly HoleRef[];
+  } | null>(null);
+  const [pendingScrew, setPendingScrew] = useState<HoleRef | null>(null);
+  const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
+  const cancelConnection = useCallback(() => {
+    setConnecting(false);
+    setFirstHole(null);
+    setPendingScrew(null);
+    dispatchHistory({ type: 'end-edit' });
+  }, []);
+  useEffect(() => {
+    viewportRef.current?.setHoleMarkersEnabled(connecting);
+  }, [connecting, viewportReady]);
+  useEffect(() => {
+    if (!connectionNotice) return;
+    const timer = window.setTimeout(() => setConnectionNotice(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [connectionNotice]);
   // Milestone 4: the quick-rotate step size for the panel buttons.
   const [rotateStep, setRotateStep] = useState(45);
   // Milestone 4: the rotation handle the pointer currently hovers.
@@ -148,7 +179,6 @@ export default function App() {
     placedId: string;
     axis: RotationAxis;
   } | null>(null);
-  const placedCounter = useRef(0);
   const lastHistoryPresentRef = useRef(placed);
 
   // Load the bundled library STLs (see
@@ -209,6 +239,10 @@ export default function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        cancelConnection();
+        return;
+      }
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') {
         return;
       }
@@ -221,11 +255,12 @@ export default function App() {
         return;
       }
       event.preventDefault();
+      cancelConnection();
       dispatchHistory({ type: event.shiftKey ? 'redo' : 'undo' });
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [cancelConnection]);
 
   const onViewportReady = useCallback((handle: ViewportHandle | null) => {
     viewportRef.current = handle;
@@ -335,12 +370,16 @@ export default function App() {
     setDialogMode(startupDialog ? 'new' : null);
   }, [startupDialog]);
 
-  const showDialog = useCallback((mode: ProjectDialogMode) => {
-    if (mode === 'open' || mode === 'manage') {
-      setSavedDesigns(readSavedDesigns(window.localStorage));
-    }
-    setDialogMode(mode);
-  }, []);
+  const showDialog = useCallback(
+    (mode: ProjectDialogMode) => {
+      cancelConnection();
+      if (mode === 'open' || mode === 'manage') {
+        setSavedDesigns(readSavedDesigns(window.localStorage));
+      }
+      setDialogMode(mode);
+    },
+    [cancelConnection],
+  );
 
   const startDesign = useCallback((name: string) => {
     clearRecoveryDraft(window.localStorage);
@@ -421,6 +460,7 @@ export default function App() {
 
   const designCallbacks: ViewportDesignCallbacks = useMemo(
     () => ({
+      onHoleTargets: setHoleTargets,
       onAlignmentChange: setAlignedHoleCount,
       onBeginEdit(): void {
         dragBaseHeights.current = new Map(
@@ -498,8 +538,7 @@ export default function App() {
       if (sizeMm === null) {
         return;
       }
-      placedCounter.current += 1;
-      const id = `placed-${placedCounter.current}`;
+      const id = `placed-${createDesignId()}`;
       dispatchHistory({
         type: 'edit',
         apply: (previous) => {
@@ -642,11 +681,69 @@ export default function App() {
     }
   }, []);
 
+  const attemptConnection = (
+    first: readonly HoleRef[],
+    second: readonly HoleRef[],
+    options = connectionOptions,
+  ) => {
+    setRetryHoles({ first, second });
+    const result = connectPieces(
+      placed,
+      libraryByIdRef.current,
+      first,
+      second,
+      viewportRef.current?.cameraPosition() ?? { x: 0, y: 600, z: 600 },
+      options,
+    );
+    setConnecting(false);
+    setFirstHole(null);
+    setConnectionNotice(null);
+    if (!result) {
+      setConnectionNotice('No clear connection found. Change Connection options and retry.');
+      return;
+    }
+    dispatchHistory({ type: 'begin-edit' });
+    dispatchHistory({ type: 'edit', apply: () => result.placed });
+    setSelectedIds([result.movingId]);
+    setSelectionMode('move');
+    if (result.extendedFastener) dispatchHistory({ type: 'end-edit' });
+    else setPendingScrew(result.hole);
+  };
+
+  const pickHole = (members: readonly HoleRef[]) => {
+    if (!firstHole) {
+      setFirstHole(members);
+      return;
+    }
+    attemptConnection(firstHole, members);
+  };
+
+  const addPendingScrew = () => {
+    if (!pendingScrew) return;
+    const next = fastenStack(
+      placed,
+      libraryByIdRef.current,
+      pendingScrew,
+      `fastener-${createDesignId()}`,
+      true,
+    );
+    if (next) dispatchHistory({ type: 'edit', apply: () => next });
+    else
+      setConnectionNotice(
+        'These holes are separated or have more than four layers. No fastener was added.',
+      );
+    cancelConnection();
+  };
+
   const selectedPieces: readonly { id: string; name: string }[] = selectedIds.flatMap((id) => {
     const piece = placed.find((entry) => entry.id === id);
     const libraryPiece =
       piece === undefined ? undefined : libraryPieces.find((entry) => entry.id === piece.libraryId);
-    return libraryPiece === undefined ? [] : [{ id, name: libraryPiece.name }];
+    return piece?.fastener
+      ? [{ id, name: fastenerName(piece.fastener) }]
+      : libraryPiece === undefined
+        ? []
+        : [{ id, name: libraryPiece.name }];
   });
 
   // The single selected piece, with its live position and rotation,
@@ -659,12 +756,12 @@ export default function App() {
             piece === undefined
               ? undefined
               : libraryPieces.find((entry) => entry.id === piece.libraryId);
-          if (piece === undefined || libraryPiece === undefined) {
+          if (piece === undefined || (!piece.fastener && libraryPiece === undefined)) {
             return null;
           }
           return {
             id: piece.id,
-            name: libraryPiece.name,
+            name: piece.fastener ? fastenerName(piece.fastener) : libraryPiece!.name,
             position: piece.position,
             rotation: piece.rotation,
           };
@@ -674,13 +771,44 @@ export default function App() {
   return (
     <div className="app">
       <Header
+        tools={
+          <ConnectControls
+            active={connecting}
+            disabled={placed.filter((piece) => !piece.fastener).length < 2 || pendingScrew !== null}
+            options={connectionOptions}
+            canRetry={retryHoles !== null && pendingScrew === null}
+            onOptions={setConnectionOptions}
+            onToggle={() => {
+              cancelConnection();
+              setConnectionNotice(null);
+              setConnecting(!connecting);
+            }}
+            onRetry={(bestFit) => {
+              const options = bestFit
+                ? { eitherSide: true, moreAngles: true, moveAssembly: true }
+                : connectionOptions;
+              setConnectionOptions(options);
+              if (retryHoles) attemptConnection(retryHoles.first, retryHoles.second, options);
+              else {
+                cancelConnection();
+                setConnecting(true);
+              }
+            }}
+          />
+        }
         designName={activeDesign.name || 'Name this design'}
         canUndo={canUndo(history)}
         canRedo={canRedo(history)}
         saveStatus={saveStatus}
         onRename={() => showDialog('rename')}
-        onUndo={() => dispatchHistory({ type: 'undo' })}
-        onRedo={() => dispatchHistory({ type: 'redo' })}
+        onUndo={() => {
+          cancelConnection();
+          dispatchHistory({ type: 'undo' });
+        }}
+        onRedo={() => {
+          cancelConnection();
+          dispatchHistory({ type: 'redo' });
+        }}
         onSave={saveActiveDesign}
         onOpen={() => showDialog('open')}
         onNew={() => showDialog('new')}
@@ -705,27 +833,35 @@ export default function App() {
         />
         <div className="viewport-wrap">
           <Viewport onReady={onViewportReady} designCallbacks={designCallbacks} />
+          {connecting && <HolePicker targets={holeTargets} first={firstHole} onPick={pickHole} />}
+          {connectionNotice && (
+            <p className="connection-notice" role="alert">
+              {connectionNotice}
+            </p>
+          )}
           {storageError !== null && (
             <p className="storage-alert" role="alert">
               {storageError}
             </p>
           )}
-          <MoveRotatePanel
-            key={singleSelected?.id ?? `multi-${selectedIds.length}`}
-            single={singleSelected}
-            selectedCount={selectedIds.length}
-            mode={selectionMode}
-            step={rotateStep}
-            hoverAxis={handleHover}
-            onSetMode={handleSetMode}
-            onSetStep={setRotateStep}
-            onMove={moveSelected}
-            onRotateStep={rotateStepSelected}
-            onRotate90={rotate90Selected}
-            onSetAngle={setAngleSelected}
-            onFlip={flipSelected}
-            onResetOrientation={resetOrientationSelected}
-          />
+          {!connecting && (
+            <MoveRotatePanel
+              key={singleSelected?.id ?? `multi-${selectedIds.length}`}
+              single={singleSelected}
+              selectedCount={selectedIds.length}
+              mode={selectionMode}
+              step={rotateStep}
+              hoverAxis={handleHover}
+              onSetMode={handleSetMode}
+              onSetStep={setRotateStep}
+              onMove={moveSelected}
+              onRotateStep={rotateStepSelected}
+              onRotate90={rotate90Selected}
+              onSetAngle={setAngleSelected}
+              onFlip={flipSelected}
+              onResetOrientation={resetOrientationSelected}
+            />
+          )}
           {badgeAxis !== null &&
             selectionMode === 'rotate' &&
             selectedIds.includes(badgeAxis.placedId) &&
@@ -753,6 +889,26 @@ export default function App() {
           onPlace={placePiece}
         />
       </main>
+      {pendingScrew && (
+        <div className="dialog-backdrop">
+          <section
+            className="project-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="screw-question"
+          >
+            <h2 id="screw-question">Add screw and nut?</h2>
+            <div className="dialog-actions">
+              <button type="button" className="dialog-primary" autoFocus onClick={addPendingScrew}>
+                Yes
+              </button>
+              <button type="button" className="dialog-secondary" onClick={cancelConnection}>
+                Not now
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {dialogMode !== null && (
         <ProjectDialog
           key={dialogMode}
