@@ -111,7 +111,7 @@ export interface DesignScene {
 
 /** Red outline box around a selected piece, a little larger than the piece itself. */
 function createSelectionBox(geometry: THREE.BufferGeometry): THREE.LineSegments {
-  geometry.computeBoundingBox();
+  if (geometry.boundingBox === null) geometry.computeBoundingBox();
   const box = geometry.boundingBox;
   if (box === null) {
     throw new Error('Could not measure the piece geometry.');
@@ -132,7 +132,7 @@ function createSelectionBox(geometry: THREE.BufferGeometry): THREE.LineSegments 
 
 /** Centre of a piece's rotated bounding box, in the piece's local frame. */
 function rotatedBoxCentre(geometry: THREE.BufferGeometry, rotation: RotationDeg): THREE.Vector3 {
-  geometry.computeBoundingBox();
+  if (geometry.boundingBox === null) geometry.computeBoundingBox();
   const box = geometry.boundingBox;
   if (box === null) {
     return new THREE.Vector3();
@@ -242,9 +242,8 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
     const selected = lastPlaced.filter((piece) => lastSelectedIds.includes(piece.id));
     const selectedGroup = selected[0]?.groupId;
     const sameGroup = selectedGroup && selected.every((piece) => piece.groupId === selectedGroup);
-    const movable = !lastPlaced.some(
-      (piece) => motionIds(lastPlaced, lastSelectedIds).has(piece.id) && piece.locked,
-    );
+    const movingIds = motionIds(lastPlaced, lastSelectedIds);
+    const movable = !lastPlaced.some((piece) => movingIds.has(piece.id) && piece.locked);
     if (handlesEnabled && movable && sameGroup) {
       const box = assemblyBounds(
         lastPlaced,
@@ -277,7 +276,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         centre.x += selectedPlaced.position.x;
         centre.y += selectedObject.position.y;
         centre.z += selectedPlaced.position.z;
-        selectedGeometry.computeBoundingSphere();
+        if (selectedGeometry.boundingSphere === null) selectedGeometry.computeBoundingSphere();
         const sphere = selectedGeometry.boundingSphere;
         handleCentre = centre;
         protractorRadius = (sphere?.radius ?? 0) + 14;
@@ -344,11 +343,12 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       library: readonly LibraryPiece[],
       selectedIds: readonly string[],
     ): void {
+      const geometryChanged = placed !== lastPlaced || library !== lastLibrary;
       lastPlaced = placed;
       lastLibrary = library;
       lastSelectedIds = selectedIds;
       const libraryById = new Map(library.map((piece) => [piece.id, piece]));
-      worldHoles = [];
+      if (geometryChanged) worldHoles = [];
       const seen = new Set<string>();
       for (const placedPiece of placed) {
         seen.add(placedPiece.id);
@@ -361,7 +361,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         if ((!placedPiece.fastener && libraryPiece === undefined) || geometry === undefined) {
           continue;
         }
-        if (libraryPiece && !placedPiece.fastener)
+        if (geometryChanged && libraryPiece && !placedPiece.fastener)
           worldHoles.push(...worldHolesForPiece(placedPiece, libraryPiece, geometry));
         let object = byId.get(placedPiece.id);
         if (object && object.userData.sourceGeometry !== geometry) {
@@ -404,7 +404,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         }
       }
       updateHandles();
-      refreshHoleMarkers();
+      if (geometryChanged) refreshHoleMarkers();
     },
 
     snapPosition(placedId: string, x: number, z: number): HoleSnapResult {

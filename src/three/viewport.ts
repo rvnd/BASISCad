@@ -143,6 +143,10 @@ export function createViewport(
   scene.add(directional);
 
   const camera = createFramingCamera(1);
+  let needsRender = true;
+  const invalidate = (): void => {
+    needsRender = true;
+  };
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -191,6 +195,7 @@ export function createViewport(
   let lastHolesUpdate = 0;
   controls.addEventListener('change', () => {
     holesDirty = true;
+    invalidate();
   });
   /** The handle the pointer currently hovers, if any — for highlight + cursor. */
   let hoveredHandle: RotationAxis | null = null;
@@ -261,6 +266,7 @@ export function createViewport(
     if (hovered !== hoveredHandle) {
       hoveredHandle = hovered;
       designScene.setHandleHover(hovered);
+      invalidate();
       designCallbacks.onHandleHover(hovered);
     }
     setCursor(hovered === null ? '' : 'grab');
@@ -270,6 +276,7 @@ export function createViewport(
     if (hoveredHandle !== null) {
       hoveredHandle = null;
       designScene.setHandleHover(null);
+      invalidate();
       designCallbacks?.onHandleHover(null);
     }
     setCursor('');
@@ -298,6 +305,7 @@ export function createViewport(
     downAt = null;
     moved = false;
     designScene.setProtractor(null, 0);
+    invalidate();
     clearHandleHover();
   };
 
@@ -357,6 +365,7 @@ export function createViewport(
         controls.enabled = false;
         setCursor('grabbing');
         designScene.setProtractor(handle.axis, rotation[handle.axis]);
+        invalidate();
         designCallbacks.onBeginRotate(handle.placedId);
         designCallbacks.onHandleDrag(handle.placedId, dragAxisForGesture('handle', handle.axis));
         try {
@@ -524,6 +533,7 @@ export function createViewport(
       );
       const newAngle = normalizeAngleDeg(gesture.startRotationDeg + snappedDelta);
       designScene.setProtractor(gesture.axis, newAngle);
+      invalidate();
       designCallbacks.onRotatePiece(gesture.placedId, gesture.axis, newAngle);
       return;
     }
@@ -571,6 +581,7 @@ export function createViewport(
     downAt = null;
     moved = false;
     designScene.setProtractor(null, 0);
+    invalidate();
     clearHandleHover();
   };
 
@@ -583,6 +594,7 @@ export function createViewport(
 
   const resize = (): void => {
     holesDirty = true;
+    invalidate();
     const width = container.clientWidth;
     const height = container.clientHeight;
     if (width === 0 || height === 0) {
@@ -604,7 +616,10 @@ export function createViewport(
     }
     animationFrame = requestAnimationFrame(tick);
     controls.update();
-    renderer.render(scene, camera);
+    if (needsRender) {
+      needsRender = false;
+      renderer.render(scene, camera);
+    }
     const now = performance.now();
     if ((holePicking || labelsMode !== 'off') && holesDirty && now - lastHolesUpdate > 100) {
       holesDirty = false;
@@ -657,10 +672,12 @@ export function createViewport(
       if (mode === 'off') designCallbacks?.onBlueprintLabels?.([]);
     },
     setHingeEnabled(enabled): void {
+      invalidate();
       hingeEnabled = enabled;
       designScene.setHandlesEnabled(!holePicking && !hingeEnabled && selectionMode === 'rotate');
     },
     setHoleMarkersEnabled(enabled, spacingPx = 15): void {
+      invalidate();
       markerSpacingPx = spacingPx;
       holePicking = enabled;
       holesDirty = true;
@@ -689,10 +706,12 @@ export function createViewport(
     ): void {
       selectedId = selectedIds[0] ?? null;
       designScene.sync(placed, library, selectedIds);
+      invalidate();
       holesDirty = true;
       designCallbacks?.onAlignmentChange?.(designScene.alignedHoleCount());
     },
     setSelectionMode(mode: SelectionMode): void {
+      invalidate();
       selectionMode = mode;
       // Handles only show in Rotate mode — in Move mode a handle grab
       // would silently rotate a piece the user was trying to move.
