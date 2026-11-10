@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { HOLE_TOLERANCE_MM } from '../app/constants';
 import type { PlacedPiece, RotationDeg } from '../app/design';
 import type { LibraryPiece } from '../app/library';
 import { getGeometry } from './libraryGeometry';
-import { findVerticalThroughHoles, snapToAlignedHole } from './holeSnapping';
-import type { HolePoint, HoleSnapResult } from './holeSnapping';
+import { alignedHoleMarkers, snapToWorldHole, worldHolesForPiece } from './orientedHoles';
+import type { WorldHole } from './orientedHoles';
+import { rotationLift } from './pieceTransforms';
+import type { HoleSnapResult } from './holeSnapping';
 import { createPieceMesh, disposePieceMesh } from './pieces';
 import {
   createProtractor,
@@ -53,6 +54,7 @@ export interface DesignScene {
     selectedIds: readonly string[],
   ): void;
   snapPosition(placedId: string, x: number, z: number): HoleSnapResult;
+  alignedHoleCount(): number;
   /** The placed id under the pointer, or null. */
   pick(ndcX: number, ndcY: number, camera: THREE.Camera): string | null;
   /** The centre of a placed piece on the workplane, or null when it is not in the scene. */
@@ -106,38 +108,6 @@ function createSelectionBox(geometry: THREE.BufferGeometry): THREE.LineSegments 
   lines.name = 'piece-selection';
   lines.visible = false;
   return lines;
-}
-
-/**
- * How far a piece must be lifted so that, after its rotation, no
- * part of it sits below the workplane. Geometry is normalised with
- * its base on y = 0, and the group rotates about its base centre —
- * so a 180° flip about X or Z would swing the part underneath the
- * plane without this lift. Rotation about the vertical (Y) axis
- * never needs lifting.
- */
-function rotationLift(geometry: THREE.BufferGeometry, rotation: RotationDeg): number {
-  geometry.computeBoundingBox();
-  const box = geometry.boundingBox;
-  if (box === null) {
-    return 0;
-  }
-  const matrix = new THREE.Matrix4().makeRotationFromEuler(
-    new THREE.Euler(
-      THREE.MathUtils.degToRad(rotation.x),
-      THREE.MathUtils.degToRad(rotation.y),
-      THREE.MathUtils.degToRad(rotation.z),
-    ),
-  );
-  let minY = Number.POSITIVE_INFINITY;
-  for (const x of [box.min.x, box.max.x]) {
-    for (const y of [box.min.y, box.max.y]) {
-      for (const z of [box.min.z, box.max.z]) {
-        minY = Math.min(minY, new THREE.Vector3(x, y, z).applyMatrix4(matrix).y);
-      }
-    }
-  }
-  return Math.max(0, -minY);
 }
 
 /** Centre of a piece's rotated bounding box, in the piece's local frame. */
@@ -226,57 +196,14 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
   let lastPlaced: readonly PlacedPiece[] = [];
   let lastLibrary: readonly LibraryPiece[] = [];
   let lastSelectedIds: readonly string[] = [];
-  let holesByPlacedId = new Map<string, readonly HolePoint[]>();
+  let worldHoles: WorldHole[] = [];
 
   const refreshHoleMarkers = (): void => {
     holeMarkers.clear();
-    const aligned = new Map<string, { x: number; z: number; y: number }>();
-    const topById = new Map<string, number>();
-    const libraryById = new Map(lastLibrary.map((piece) => [piece.id, piece]));
-    for (const piece of lastPlaced) {
-      const geometryId = libraryById.get(piece.libraryId)?.geometryId;
-      const geometry = geometryId ? getGeometry(geometryId) : undefined;
-      topById.set(
-        piece.id,
-        (byId.get(piece.id)?.position.y ?? 0) + (geometry?.boundingBox?.max.y ?? 0),
-      );
-    }
-    for (let i = 0; i < lastPlaced.length; i += 1) {
-      const first = lastPlaced[i];
-      if (first === undefined) continue;
-      if (first.rotation.x !== 0 || first.rotation.z !== 0) continue;
-      const firstHoles = holesByPlacedId.get(first.id) ?? [];
-      for (let j = i + 1; j < lastPlaced.length; j += 1) {
-        const second = lastPlaced[j];
-        if (second === undefined) continue;
-        if (second.rotation.x !== 0 || second.rotation.z !== 0) continue;
-        const secondHoles = holesByPlacedId.get(second.id) ?? [];
-        for (const a of firstHoles) {
-          const angleA = THREE.MathUtils.degToRad(first.rotation.y);
-          const pointA = {
-            x: first.position.x + a.x * Math.cos(angleA) + a.z * Math.sin(angleA),
-            z: first.position.z - a.x * Math.sin(angleA) + a.z * Math.cos(angleA),
-          };
-          for (const b of secondHoles) {
-            const angleB = THREE.MathUtils.degToRad(second.rotation.y);
-            const pointB = {
-              x: second.position.x + b.x * Math.cos(angleB) + b.z * Math.sin(angleB),
-              z: second.position.z - b.x * Math.sin(angleB) + b.z * Math.cos(angleB),
-            };
-            if (Math.hypot(pointA.x - pointB.x, pointA.z - pointB.z) > HOLE_TOLERANCE_MM) continue;
-            const y = Math.max(topById.get(first.id) ?? 0, topById.get(second.id) ?? 0) + 0.8;
-            for (const point of [pointA, pointB]) {
-              const key = `${point.x.toFixed(2)},${point.z.toFixed(2)}`;
-              aligned.set(key, { ...point, y: Math.max(y, aligned.get(key)?.y ?? y) });
-            }
-          }
-        }
-      }
-    }
-    for (const point of aligned.values()) {
+    for (const { position, axis } of alignedHoleMarkers(worldHoles)) {
       const marker = new THREE.Mesh(holeMarkerGeometry, holeMarkerMaterial);
-      marker.rotation.x = -Math.PI / 2;
-      marker.position.set(point.x, point.y, point.z);
+      marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
+      marker.position.copy(position);
       marker.renderOrder = 10;
       holeMarkers.add(marker);
     }
@@ -361,7 +288,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       lastLibrary = library;
       lastSelectedIds = selectedIds;
       const libraryById = new Map(library.map((piece) => [piece.id, piece]));
-      holesByPlacedId = new Map();
+      worldHoles = [];
       const seen = new Set<string>();
       for (const placedPiece of placed) {
         seen.add(placedPiece.id);
@@ -373,7 +300,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         if (libraryPiece === undefined || geometry === undefined) {
           continue;
         }
-        holesByPlacedId.set(placedPiece.id, findVerticalThroughHoles(geometry));
+        worldHoles.push(...worldHolesForPiece(placedPiece, libraryPiece, geometry));
         let object = byId.get(placedPiece.id);
         if (object === undefined) {
           object = createPieceMesh(geometry, libraryPiece.colourHex);
@@ -409,7 +336,12 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
     },
 
     snapPosition(placedId: string, x: number, z: number): HoleSnapResult {
-      return snapToAlignedHole(placedId, { x, z }, lastPlaced, holesByPlacedId);
+      const piece = lastPlaced.find((entry) => entry.id === placedId);
+      return piece ? snapToWorldHole(piece, { x, z }, worldHoles) : { x, z, snapped: false };
+    },
+
+    alignedHoleCount(): number {
+      return holeMarkers.children.length;
     },
 
     pick(ndcX: number, ndcY: number, camera: THREE.Camera): string | null {

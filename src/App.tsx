@@ -10,6 +10,7 @@ import ViewControls from './components/ViewControls.tsx';
 import Viewport from './components/Viewport.tsx';
 import { PIECE_COLOURS, SPEC_PIECES, bundledPieces, isPieceReady } from './app/library';
 import type { LibraryPiece, PieceCategory, PieceSizeMm } from './app/library';
+import { parseLibraryHoles } from './app/libraryHoles';
 import {
   addPiecesRotation,
   centerDesign,
@@ -123,6 +124,7 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('move');
   const [snapHoles, setSnapHoles] = useState(true);
+  const [alignedHoleCount, setAlignedHoleCount] = useState(0);
   // Milestone 4: the quick-rotate step size for the panel buttons.
   const [rotateStep, setRotateStep] = useState(45);
   // Milestone 4: the rotation handle the pointer currently hovers.
@@ -144,21 +146,30 @@ export default function App() {
   // simply leaves its piece unplaceable.
   useEffect(() => {
     let cancelled = false;
+    const holeMetadata = fetch(`${import.meta.env.BASE_URL}library/holes.json`)
+      .then((response) => (response.ok ? response.json() : {}))
+      .then(parseLibraryHoles)
+      .catch(() => parseLibraryHoles(null));
     for (const piece of bundledPieces()) {
       if (piece.bundledFile === undefined) {
         continue;
       }
       const bundledFile = piece.bundledFile;
       const geometryId = `bundled-${piece.id}`;
-      loadPieceGeometryFromUrl(`${import.meta.env.BASE_URL}${bundledFile.file}`)
-        .then((loaded) => {
+      Promise.all([
+        loadPieceGeometryFromUrl(`${import.meta.env.BASE_URL}${bundledFile.file}`),
+        holeMetadata,
+      ])
+        .then(([loaded, holes]) => {
           if (cancelled) {
             return;
           }
           registerGeometry(geometryId, loaded.geometry);
           setSpecPieces((previous) =>
             previous.map((entry) =>
-              entry.id === piece.id ? { ...entry, geometryId, sizeMm: loaded.sizeMm } : entry,
+              entry.id === piece.id
+                ? { ...entry, geometryId, sizeMm: loaded.sizeMm, holes: holes[piece.id] }
+                : entry,
             ),
           );
         })
@@ -392,6 +403,7 @@ export default function App() {
 
   const designCallbacks: ViewportDesignCallbacks = useMemo(
     () => ({
+      onAlignmentChange: setAlignedHoleCount,
       onBeginEdit(): void {
         dispatchHistory({ type: 'begin-edit' });
       },
@@ -406,7 +418,7 @@ export default function App() {
         setSelectedIds([]);
         setBadgeAxis(null);
       },
-      onDragPiece(placedId: string, x: number, z: number): void {
+      onDragPiece(placedId: string, x: number, z: number, y?: number): void {
         dispatchHistory({
           type: 'edit',
           apply: (previous) =>
@@ -420,8 +432,8 @@ export default function App() {
                 ...piece,
                 position:
                   sizeMm === null
-                    ? { ...piece.position, x, z }
-                    : clampPosition(x, piece.position.y, z, sizeMm),
+                    ? { ...piece.position, x, y: y ?? piece.position.y, z }
+                    : clampPosition(x, y ?? piece.position.y, z, sizeMm),
               };
             }),
         });
@@ -625,6 +637,7 @@ export default function App() {
           hasPieces={placed.length > 0}
           onCenterProject={centerProject}
           snapHoles={snapHoles}
+          alignedHoleCount={alignedHoleCount}
           onSnapHolesChange={setSnapHoles}
         />
         <div className="viewport-wrap">

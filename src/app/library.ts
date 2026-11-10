@@ -30,6 +30,8 @@
  * the STLs if they ever differ.
  */
 
+import type { LibraryHole } from './libraryHoles';
+
 export type PieceCategory = 'girders' | 'braces' | 'plates';
 
 export const PIECE_CATEGORIES: readonly {
@@ -94,6 +96,8 @@ export interface LibraryPiece {
   geometryId: string | null;
   /** Bundled STL file, if this piece has one; undefined otherwise. */
   bundledFile?: BundledFile;
+  /** Hole centers and axes in the same normalized local frame as the geometry. */
+  holes?: readonly LibraryHole[];
 }
 
 /** True when the piece has geometry and can be placed on the workplane. */

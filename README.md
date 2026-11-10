@@ -112,7 +112,7 @@ src/
     constants.ts      Frozen spec values — the one place numbers live.
     designHistory.ts  Undo/redo history with grouped pointer edits.
     projects.ts       Local saved designs and recovery drafts.
-    holeSnapping.ts  Through-hole detection and 2 mm drag alignment.
+    libraryHoles.ts   Validated bore centres and axes from the library.
     screws.ts         Screw-length rule (pure function, tested).
     *.test.ts         Vitest unit tests.
   components/
@@ -122,6 +122,7 @@ src/
   three/
     workplane.ts      Pure Three.js: 1000×1000 mm grid, axes, camera.
     viewport.ts       Renderer / scene / controls / loop / dispose.
+    orientedHoles.ts   Hole alignment and rings at any piece orientation.
   styles/
     index.css         Layout + header + viewport styles.
 e2e/
@@ -145,17 +146,14 @@ without rewrites:
 
 ## Milestones
 
-Milestones 0–5 are implemented. Milestone 5 adds named designs, browser
-save/open, automatic recovery, 100-step undo/redo, project management,
-and Center Project. Milestone 6 is in progress: it detects vertical
-through-holes in flat STL/OBJ meshes, snaps a dragged hole to a matching
-hole within 2 mm, shows green rings for aligned holes, and allows
-snapping to be disabled or bypassed with Alt. Horizontal holes and
-pieces tilted around X or Z are not included yet. Run `npm run test:e2e`
-for Playwright smoke coverage.
+Milestones 0–6 are implemented. Milestone 6 uses the library's 3D bore
+metadata for snapping at any orientation, including upright girders and
+brace arms. It measures the actual wall around each hole, updates green
+rings on every aligned hole, and supports the 2 mm tolerance, Snap holes
+toggle, and Alt bypass. Imported flat meshes use through-hole detection.
 
 The build follows the milestone plan in
-`workspace/your_files/basiscad-milestone-plan/basiscad-milestone-plan.md`
+[`docs/milestone-plan.md`](docs/milestone-plan.md)
 (20 milestones, 0–19, browser-only, auth parked for later), tracked as
 GitHub issues in this repo — Milestone 0 is issue #1. Build in number
 order; do not start a milestone until the previous one's "Done when"

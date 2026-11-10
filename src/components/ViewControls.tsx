@@ -30,6 +30,7 @@ interface ViewControlsProps {
   hasPieces: boolean;
   onCenterProject: () => void;
   snapHoles: boolean;
+  alignedHoleCount: number;
   onSnapHolesChange: (enabled: boolean) => void;
 }
 
@@ -46,6 +47,7 @@ export default function ViewControls({
   hasPieces,
   onCenterProject,
   snapHoles,
+  alignedHoleCount,
   onSnapHolesChange,
 }: ViewControlsProps) {
   return (
@@ -91,6 +93,9 @@ export default function ViewControls({
           />
           <span>Snap holes</span>
         </label>
+        <p className="panel-note" aria-label="Aligned holes" aria-live="polite">
+          {alignedHoleCount} aligned holes
+        </p>
         <p className="panel-note">Hold Alt while dragging to move freely.</p>
         <CameraViewsDropdown
           currentView={currentView}

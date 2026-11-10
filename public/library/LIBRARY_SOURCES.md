@@ -72,9 +72,12 @@ mesh genus: a solid with N through-holes has genus N.
 ## holes.json
 
 `holes.json` lists every hole (centre, axis, radius) per piece id, in
-the app's Y-up frame — the source-frame values rotated -90° about X.
-It is a sidecar for future milestones (hole snapping, screws); the app
-does not read it yet.
+the app's Y-up frame. The generator applies the 1x11 Girder's extra
+rotation, then the loader's -90° X rotation, footprint centring, and
+base-height translation to the hole centres; axes receive only rotations.
+The app reads this sidecar for snapping and green alignment rings.
+Tests raycast through all 17 pieces to check that the metadata matches
+the actual STL bores.
 
 ## What used to be here
 

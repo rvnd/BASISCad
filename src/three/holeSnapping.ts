@@ -5,11 +5,13 @@ import type { PlacedPiece } from '../app/design';
 export interface HolePoint {
   x: number;
   z: number;
+  radius?: number;
 }
 
 export interface HoleSnapResult {
   x: number;
   z: number;
+  y?: number;
   snapped: boolean;
 }
 
@@ -163,7 +165,11 @@ export function findVerticalThroughHoles(geometry: THREE.BufferGeometry): readon
         x += (a.x + b.x) * cross;
         z += (a.z + b.z) * cross;
       }
-      return { x: x / (3 * twiceArea), z: z / (3 * twiceArea) };
+      return {
+        x: x / (3 * twiceArea),
+        z: z / (3 * twiceArea),
+        radius: Math.sqrt(Math.abs(twiceArea / 2) / Math.PI),
+      };
     });
 
   holeCache.set(geometry, holes);

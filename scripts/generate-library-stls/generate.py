@@ -30,9 +30,9 @@ Outputs (into ``../../public/library/``):
   X/Y, bottom face on z = 0. The app's loader rotates Z-up files flat
   (see ``src/three/loadPieceFile.ts``, ``assumeZUp``).
   ``holes.json`` — per-piece hole list in the app's Y-up frame
-  (rotate -90° about X from the source frame), for future milestones
-  that need hole positions (snapping, screws). The app does not read
-  it yet.
+  (rotate -90° about X from the source frame), normalized to the same
+  base and footprint center as the loaded geometry. The app uses it
+  for snapping, connection markers, and screws.
 
 Validation (the script fails unless every check passes):
   - the mesh is watertight and winding-consistent (trimesh);
@@ -121,6 +121,24 @@ def to_app_frame(point: list[float]) -> list[float]:
     return [round(x, 4), round(z, 4), round(-y, 4)]
 
 
+def normalise_hole(hole: dict, bounds: np.ndarray, degrees: float) -> dict:
+    """Apply the mesh's girder rotation, then the loader's orientation and centering."""
+    angle = math.radians(degrees)
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+
+    def rotated(point: list[float]) -> list[float]:
+        x, y, z = point
+        return [x * cos_a - y * sin_a, x * sin_a + y * cos_a, z]
+
+    x, y, z = rotated(hole["center"])
+    mid = (bounds[0] + bounds[1]) / 2
+    return {
+        "center": [round(x - mid[0], 4), round(z - bounds[0][2], 4), round(-y + mid[1], 4)],
+        "axis": to_app_frame(rotated(hole["axis"])),
+        "radius": hole["radius"],
+    }
+
+
 def genus(mesh: trimesh.Trimesh) -> int:
     """Genus of a closed orientable mesh, from its Euler characteristic.
 
@@ -187,11 +205,7 @@ def main() -> int:
         bounds = mesh.bounds  # [[min x,y,z], [max x,y,z]]
         size = bounds[1] - bounds[0]
         holes_out[piece_id] = [
-            {
-                "center": to_app_frame(hole["center"]),
-                "axis": to_app_frame(hole["axis"]),
-                "radius": hole["radius"],
-            }
+            normalise_hole(hole, bounds, ROTATE_ABOUT_Z.get(name, 0))
             for hole in holes
         ]
         rows.append(

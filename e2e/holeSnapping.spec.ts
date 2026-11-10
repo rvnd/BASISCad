@@ -1,7 +1,7 @@
 import { appUrl, expect, test } from './fixtures';
 import type { Page } from '@playwright/test';
 
-async function prepareStack(page: Page) {
+async function prepareStack(page: Page, upright = false) {
   await page.goto(appUrl);
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Design name').fill('Snapping Test');
@@ -13,10 +13,12 @@ async function prepareStack(page: Page) {
   const panel = page.getByRole('region', { name: 'Move and rotate' });
   for (const height of [0, 3.175]) {
     await place.click();
+    if (upright)
+      await page.getByRole('button', { name: 'Rotate X 90 degrees', exact: true }).click();
     for (const [label, value] of [
       ['X in mm', '0'],
       ['Z in mm', height === 0 ? '0' : '20'],
-      ['Y · height in mm', String(height)],
+      ['Y · height in mm', String(upright ? 0 : height)],
     ] as const) {
       await panel.getByLabel(label).fill(value);
       await panel.getByLabel(label).press('Enter');
@@ -41,6 +43,37 @@ async function prepareStack(page: Page) {
   });
   return { canvas, screenPoint };
 }
+
+test('snaps upright girders and keeps their horizontal-hole rings live', async ({
+  page,
+}, testInfo) => {
+  const { canvas, screenPoint } = await prepareStack(page, true);
+  const start = screenPoint(0, 21.5);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  try {
+    const outside = screenPoint(4, 6);
+    await page.mouse.move(outside.x, outside.y, { steps: 8 });
+    await expect(page.getByLabel('Aligned holes', { exact: true })).toHaveText('0 aligned holes');
+    const end = screenPoint(1, 6);
+    await page.mouse.move(end.x, end.y, { steps: 8 });
+    await expect.poll(async () => Math.abs((await movingPosition(page)).x)).toBeLessThan(0.001);
+    await expect(canvas).toHaveCSS('cursor', 'copy');
+    await expect(page.getByLabel('Aligned holes', { exact: true })).toHaveText('6 aligned holes');
+  } finally {
+    await page.mouse.up();
+  }
+  await page.getByRole('button', { name: /Camera view:/ }).click();
+  await page.getByRole('menuitem', { name: 'Front', exact: true }).click();
+  for (let i = 0; i < 6; i += 1)
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await testInfo.attach('upright-green-rings', {
+    body: await canvas.screenshot(),
+    contentType: 'image/png',
+  });
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect.poll(() => movingPosition(page)).toEqual({ x: 0, z: 20 });
+});
 
 async function movingPosition(page: Page): Promise<{ x: number; z: number }> {
   return page.evaluate(() => {

@@ -54,11 +54,12 @@ export interface ViewportHandle {
  * instead of jumping so its centre is under the cursor.
  */
 export interface ViewportDesignCallbacks {
+  onAlignmentChange?(count: number): void;
   onBeginEdit(): void;
   onEndEdit(): void;
   onSelectPiece(placedId: string, additive: boolean): void;
   onDeselectAll(): void;
-  onDragPiece(placedId: string, x: number, z: number): void;
+  onDragPiece(placedId: string, x: number, z: number, y?: number): void;
   /** A handle drag or rotate-mode drag set one axis to an absolute angle. */
   onRotatePiece(placedId: string, axis: RotationAxis, angleDeg: number): void;
   /** Grabbing a rotation handle switches the selection to Rotate mode. */
@@ -382,7 +383,7 @@ export function createViewport(
         ? designScene.snapPosition(gesture.placedId, x, z)
         : { x, z, snapped: false };
     setCursor(snap.snapped ? 'copy' : 'grabbing');
-    designCallbacks.onDragPiece(gesture.placedId, snap.x, snap.z);
+    designCallbacks.onDragPiece(gesture.placedId, snap.x, snap.z, 'y' in snap ? snap.y : undefined);
   };
 
   const onPointerUp = (event: PointerEvent): void => {
@@ -485,6 +486,7 @@ export function createViewport(
       selectedIds: readonly string[],
     ): void {
       designScene.sync(placed, library, selectedIds);
+      designCallbacks?.onAlignmentChange?.(designScene.alignedHoleCount());
     },
     setSelectionMode(mode: SelectionMode): void {
       selectionMode = mode;
