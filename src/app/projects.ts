@@ -1,3 +1,5 @@
+import { isLabelMode, isLabelPlacement } from './labels';
+import type { LabelMode } from './labels';
 import type { PlacedPiece } from './design';
 import { isFastenerConnection } from './connections';
 
@@ -9,6 +11,7 @@ export interface DesignDocument {
   name: string;
   placed: readonly PlacedPiece[];
   updatedAt: number;
+  labelMode?: LabelMode;
 }
 
 export interface StorageLike {
@@ -39,6 +42,7 @@ function isPlacedPiece(value: unknown): value is PlacedPiece {
     isFiniteNumber(piece.rotation.x) &&
     isFiniteNumber(piece.rotation.y) &&
     isFiniteNumber(piece.rotation.z) &&
+    (piece.label === undefined || isLabelPlacement(piece.label)) &&
     (piece.fastener === undefined || isFastenerConnection(piece.fastener)) &&
     (piece.locked === undefined || typeof piece.locked === 'boolean') &&
     (piece.hingeAngleDeg === undefined || isFiniteNumber(piece.hingeAngleDeg)) &&
@@ -61,6 +65,7 @@ function isDesignDocument(value: unknown): value is DesignDocument {
     typeof document.id === 'string' &&
     typeof document.name === 'string' &&
     document.name.trim().length > 0 &&
+    (document.labelMode === undefined || isLabelMode(document.labelMode)) &&
     Array.isArray(document.placed) &&
     document.placed.every(isPlacedPiece) &&
     (!document.placed.some((piece) => piece.fastener) ||
@@ -158,6 +163,7 @@ export function recoveryMatchesSavedDesign(
   return (
     match !== undefined &&
     match.name === recovery.name &&
+    (match.labelMode ?? 'off') === (recovery.labelMode ?? 'off') &&
     JSON.stringify(match.placed) === JSON.stringify(recovery.placed)
   );
 }

@@ -1,3 +1,4 @@
+import type { LabelPlacement } from './labels';
 import { WORKPLANE_HALF_MM } from './constants';
 import type { PieceSizeMm } from './library';
 import type { FastenerConnection } from './connections';
@@ -45,6 +46,7 @@ export interface PlacedPiece {
   groupId?: string;
   groupRotation?: RotationDeg;
   hingeAngleDeg?: number;
+  label?: LabelPlacement;
   locked?: boolean;
 }
 
