@@ -1,4 +1,6 @@
 import PrintViewDialog from './components/PrintViewDialog';
+import FirstUseGuide from './components/FirstUseGuide';
+import { markGuideSeen, readGuideSeen } from './app/guide';
 import PrintReport from './components/PrintReport';
 import { printBudget } from './app/printBudget';
 import type { PrintBudget } from './app/printBudget';
@@ -116,6 +118,14 @@ function readInitialProjectState(): {
  * recovery, and undo/redo history above this component.
  */
 export default function App() {
+  const [initialGuideSeen] = useState(() => readGuideSeen(window.localStorage));
+  const guideSeenRef = useRef(initialGuideSeen);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const closeGuide = useCallback(() => {
+    guideSeenRef.current = true;
+    markGuideSeen(window.localStorage);
+    setGuideOpen(false);
+  }, []);
   const viewportRef = useRef<ViewportHandle | null>(null);
   const libraryByIdRef = useRef(new Map<string, LibraryPiece>());
   const [viewportReady, setViewportReady] = useState(false);
@@ -465,6 +475,7 @@ export default function App() {
   );
 
   const startDesign = useCallback((name: string) => {
+    setGuideOpen(!guideSeenRef.current);
     idlePlacedRef.current = [];
     clearRecoveryDraft(window.localStorage);
     setRecoveryDraft(null);
@@ -485,6 +496,7 @@ export default function App() {
   }, []);
 
   const openSavedDesign = useCallback((design: DesignDocument) => {
+    setGuideOpen(!guideSeenRef.current);
     idlePlacedRef.current = design.placed;
     setActiveDesign({ id: design.id, name: design.name, labelMode: design.labelMode });
     dispatchHistory({ type: 'replace', placed: design.placed });
@@ -529,6 +541,7 @@ export default function App() {
     if (recoveryDraft === null) {
       return;
     }
+    setGuideOpen(!guideSeenRef.current);
     idlePlacedRef.current = recoveryDraft.placed;
     setActiveDesign({
       id: recoveryDraft.id,
@@ -923,6 +936,7 @@ export default function App() {
   return (
     <div className="app">
       <Header
+        onHelp={() => setGuideOpen(true)}
         tools={
           <div className="header-tools">
             <AssemblyControls
@@ -1030,6 +1044,7 @@ export default function App() {
           }}
         />
         <div className="viewport-wrap">
+          {guideOpen && <FirstUseGuide key={activeDesign.id} onClose={closeGuide} />}
           <Viewport onReady={onViewportReady} designCallbacks={designCallbacks} />
           <BlueprintLabels
             labels={blueprintLabels}

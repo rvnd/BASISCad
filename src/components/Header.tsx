@@ -17,6 +17,7 @@ interface HeaderProps {
   onManage: () => void;
   canPrint: boolean;
   onPrint: () => void;
+  onHelp: () => void;
 }
 
 export default function Header({
@@ -33,6 +34,7 @@ export default function Header({
   onManage,
   canPrint,
   onPrint,
+  onHelp,
   tools,
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -103,7 +105,7 @@ export default function Header({
       </div>
       {tools}
       <span className="header-status" role="status">
-        {saveStatus ?? 'Milestone 5 · local design'}
+        {saveStatus ?? ''}
       </span>
       <div className="header-menu" ref={menuRef}>
         <button
@@ -147,8 +149,10 @@ export default function Header({
               type="button"
               role="menuitem"
               className="menu-action"
-              disabled
-              title="Help — Milestone 13"
+              onClick={() => {
+                setMenuOpen(false);
+                onHelp();
+              }}
             >
               Help
             </button>

@@ -89,3 +89,14 @@ export const test = process.env.PLAYWRIGHT_RELAY_URL
       },
     })
   : base;
+
+// Ordinary feature tests start with the tutorial dismissed. Guide tests use
+// genuine first-use storage and exercise its persistence themselves.
+test.beforeEach(async ({ page }, testInfo) => {
+  if (testInfo.file.endsWith('guide.spec.ts')) return;
+  await page.addInitScript(() => {
+    if (location.protocol === 'http:' || location.protocol === 'https:') {
+      localStorage.setItem('basiscad.guide-seen.v1', 'true');
+    }
+  });
+});
