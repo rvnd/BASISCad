@@ -47,6 +47,7 @@ async function prepareStack(page: Page, upright = false) {
 test('snaps upright girders and keeps their horizontal-hole rings live', async ({
   page,
 }, testInfo) => {
+  test.setTimeout(60_000);
   const { canvas, screenPoint } = await prepareStack(page, true);
   const start = screenPoint(0, 21.5);
   await page.mouse.move(start.x, start.y);

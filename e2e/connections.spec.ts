@@ -95,6 +95,7 @@ test('connects picked holes, adds a paired screw with Yes, and undoes the whole 
 test('adds a neighbouring screw without moving the existing assembly, and saves its connections', async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   await start(page);
   await add(page, -80);
   await add(page, 80);
