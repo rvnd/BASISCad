@@ -225,10 +225,34 @@ test('centres the whole project as one undoable edit', async ({ page }) => {
   const girder = page.getByRole('listitem').filter({ hasText: '1x6 Girder' });
   await girder.getByRole('button', { name: 'Place' }).click();
   await girder.getByRole('button', { name: 'Place' }).click();
-  const movePanel = page.getByRole('region', { name: 'Move and rotate' });
-  await expect(movePanel.getByLabel('X in mm')).toHaveValue('-30');
+  const poses = () =>
+    page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem('basiscad.recovery.v1')!).placed as Array<{
+          position: { x: number; y: number; z: number };
+        }>,
+    );
+  const before = await poses();
+  // A long girder's default must move to a free spot before centring.
+  expect(
+    Math.abs(before[1]!.position.x - before[0]!.position.x) > 76 ||
+      Math.abs(before[1]!.position.z - before[0]!.position.z) > 12.69,
+  ).toBe(true);
   await page.getByRole('button', { name: 'Center Project' }).click();
-  await expect(movePanel.getByLabel('X in mm')).toHaveValue('30');
+  await expect
+    .poll(async () => {
+      const pieces = await poses();
+      return (
+        Math.abs(pieces[0]!.position.x + pieces[1]!.position.x) +
+        Math.abs(pieces[0]!.position.z + pieces[1]!.position.z)
+      );
+    })
+    .toBeLessThan(0.001);
+  const after = await poses();
+  for (const axis of ['x', 'y', 'z'] as const)
+    expect(after[1]!.position[axis] - after[0]!.position[axis]).toBeCloseTo(
+      before[1]!.position[axis] - before[0]!.position[axis],
+    );
   await page.getByRole('button', { name: 'Undo' }).click();
-  await expect(movePanel.getByLabel('X in mm')).toHaveValue('-30');
+  await expect.poll(poses).toEqual(before);
 });

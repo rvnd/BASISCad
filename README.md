@@ -123,6 +123,8 @@ src/
     workplane.ts      Pure Three.js: 1000×1000 mm grid, axes, camera.
     viewport.ts       Renderer / scene / controls / loop / dispose.
     orientedHoles.ts   Hole alignment and rings at any piece orientation.
+    meshCollision.ts   Closed-mesh overlap checks, with cached spatial trees.
+    designConstraints.ts Swept dragging, collision rules, and floor clamping.
   styles/
     index.css         Layout + header + viewport styles.
 e2e/
@@ -146,11 +148,15 @@ without rewrites:
 
 ## Milestones
 
-Milestones 0–6 are implemented. Milestone 6 uses the library's 3D bore
+Milestones 0–7 are implemented. Milestone 6 uses the library's 3D bore
 metadata for snapping at any orientation, including upright girders and
 brace arms. It measures the actual wall around each hole, updates green
 rings on every aligned hole, and supports the 2 mm tolerance, Snap holes
 toggle, and Alt bypass. Imported flat meshes use through-hole detection.
+Milestone 7 prevents solid overlap while allowing face contact and empty
+bores. Dragged pieces slide, climb across obstacles, and descend; typed
+moves and swept rotations obey the same floor and collision rules. New
+pieces start at a free position.
 
 The build follows the milestone plan in
 [`docs/milestone-plan.md`](docs/milestone-plan.md)

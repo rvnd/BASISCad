@@ -74,7 +74,7 @@ function NumberField({
       return;
     }
     onCommit(parsed);
-    setDraft(formatNumber(parsed));
+    setDraft(formatNumber(value));
   };
 
   return (

@@ -2,7 +2,7 @@
 
 Source: the repository’s GitHub milestone issues. Complete each milestone’s acceptance checks with unit tests and browser interaction before advancing.
 
-Milestones 0–6 are complete. Local validation: `npm run test:e2e:local`.
+Milestones 0–7 are complete. Local validation: `npm run test:e2e:local`.
 
 ## Milestone 6 — Hole snapping with green rings
 
@@ -29,13 +29,15 @@ Goal: pieces behave like physical pieces — they touch, slide, and stack, but n
 
 Steps:
 
-- [ ] Block a drag that would push a piece inside another piece. Faces may touch; volumes may not overlap.
-- [ ] Let a dragged piece slide along the contour of the piece it meets.
-- [ ] Make a piece dragged against another climb the near wall, travel across the top, and come down the far wall to the workplane if the drag continues.
-- [ ] Block any rotation that would make a piece overlap another piece.
-- [ ] Clamp every move and rotation so no part of a piece goes below the workplane.
+- [x] Block a drag that would push a piece inside another piece. Faces may touch; volumes may not overlap.
+- [x] Let a dragged piece slide along the contour of the piece it meets.
+- [x] Make a piece dragged against another climb the near wall, travel across the top, and come down the far wall to the workplane if the drag continues.
+- [x] Block any rotation that would make a piece overlap another piece.
+- [x] Clamp every move and rotation so no part of a piece goes below the workplane.
 
 Done when: you cannot push one girder through another, you can drag a piece up and over a placed piece in one motion, and no rotation can bury a piece under the workplane.
+
+Verification: 157 unit tests, static checks, and production build passed. All 17 browser cases were verified: 16 passed in the full run, then the updated Center Project regression passed separately. Direct website checks confirmed climbing, crossing, descending to height zero, and resting on the actual 3.175 mm girder thickness; the side view was inspected. Numerical collision tolerance: 0.00001 mm. No new runtime dependency is required.
 
 ## Milestone 8 — Connect: pick two holes to join two pieces
 

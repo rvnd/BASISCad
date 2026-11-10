@@ -14,7 +14,6 @@ import { parseLibraryHoles } from './app/libraryHoles';
 import {
   addPiecesRotation,
   centerDesign,
-  clampPosition,
   createPlacedPiece,
   flipPiecesRotation,
   removePlaced,
@@ -36,6 +35,12 @@ import {
 } from './app/projects';
 import type { DesignDocument } from './app/projects';
 import { registerGeometry } from './three/libraryGeometry';
+import {
+  constrainDesignEdit,
+  dragPiece,
+  freePlacement,
+  geometryLookup,
+} from './three/designConstraints';
 import { loadPieceGeometry, loadPieceGeometryFromUrl } from './three/loadPieceFile';
 import { DEFAULT_CAMERA_VIEW_ID } from './three/cameraViews';
 import type { CameraViewId } from './three/cameraViews';
@@ -106,6 +111,11 @@ export default function App() {
     createDesignHistory(),
   );
   const placed = history.present;
+  const placedRef = useRef(placed);
+  useEffect(() => {
+    placedRef.current = placed;
+  }, [placed]);
+  const dragBaseHeights = useRef(new Map<string, number>());
   const [initialProjects] = useState(readInitialProjectState);
   const [activeDesign, setActiveDesign] = useState<ActiveDesign>(() => ({
     id: createDesignId(),
@@ -310,7 +320,15 @@ export default function App() {
   }, [libraryPieces]);
 
   const centerProject = useCallback(() => {
-    dispatchHistory({ type: 'edit', apply: (previous) => centerDesign(previous, sizeById) });
+    dispatchHistory({
+      type: 'edit',
+      apply: (previous) =>
+        constrainDesignEdit(
+          previous,
+          centerDesign(previous, sizeById),
+          geometryLookup(libraryByIdRef.current),
+        ),
+    });
   }, [sizeById]);
 
   const closeDialog = useCallback(() => {
@@ -405,6 +423,9 @@ export default function App() {
     () => ({
       onAlignmentChange: setAlignedHoleCount,
       onBeginEdit(): void {
+        dragBaseHeights.current = new Map(
+          placedRef.current.map((piece) => [piece.id, piece.position.y]),
+        );
         dispatchHistory({ type: 'begin-edit' });
       },
       onEndEdit(): void {
@@ -421,27 +442,31 @@ export default function App() {
       onDragPiece(placedId: string, x: number, z: number, y?: number): void {
         dispatchHistory({
           type: 'edit',
-          apply: (previous) =>
-            previous.map((piece) => {
-              if (piece.id !== placedId) {
-                return piece;
-              }
-              const sizeMm: PieceSizeMm | null =
-                libraryByIdRef.current.get(piece.libraryId)?.sizeMm ?? null;
-              return {
-                ...piece,
-                position:
-                  sizeMm === null
-                    ? { ...piece.position, x, y: y ?? piece.position.y, z }
-                    : clampPosition(x, y ?? piece.position.y, z, sizeMm),
-              };
-            }),
+          apply: (previous) => {
+            const piece = previous.find((entry) => entry.id === placedId);
+            if (!piece) return previous;
+            const moved = dragPiece(
+              piece,
+              { x, y: y ?? piece.position.y, z },
+              previous,
+              geometryLookup(libraryByIdRef.current),
+              dragBaseHeights.current.get(placedId) ?? piece.position.y,
+            );
+            return moved === piece
+              ? previous
+              : previous.map((entry) => (entry.id === placedId ? moved : entry));
+          },
         });
       },
       onRotatePiece(placedId: string, axis: RotationAxis, angleDeg: number): void {
         dispatchHistory({
           type: 'edit',
-          apply: (previous) => setPiecesRotation(previous, [placedId], axis, angleDeg),
+          apply: (previous) =>
+            constrainDesignEdit(
+              previous,
+              setPiecesRotation(previous, [placedId], axis, angleDeg),
+              geometryLookup(libraryByIdRef.current),
+            ),
         });
       },
       onBeginRotate(): void {
@@ -477,10 +502,14 @@ export default function App() {
       const id = `placed-${placedCounter.current}`;
       dispatchHistory({
         type: 'edit',
-        apply: (previous) => [
-          ...previous,
-          createPlacedPiece(id, libraryId, previous.length, sizeMm),
-        ],
+        apply: (previous) => {
+          const next = freePlacement(
+            createPlacedPiece(id, libraryId, previous.length, sizeMm),
+            previous,
+            geometryLookup(libraryByIdRef.current),
+          );
+          return next ? [...previous, next] : previous;
+        },
       });
       setSelectedIds([id]);
       setSelectionMode('move');
@@ -503,11 +532,15 @@ export default function App() {
           if (single === undefined) {
             return previous;
           }
-          return setPiecesPosition(
+          return constrainDesignEdit(
             previous,
-            selectedIds,
-            { ...single.position, [axis]: value },
-            sizeById,
+            setPiecesPosition(
+              previous,
+              selectedIds,
+              { ...single.position, [axis]: value },
+              sizeById,
+            ),
+            geometryLookup(libraryByIdRef.current),
           );
         },
       });
@@ -519,7 +552,12 @@ export default function App() {
     (axis: RotationAxis, direction: 1 | -1) => {
       dispatchHistory({
         type: 'edit',
-        apply: (previous) => addPiecesRotation(previous, selectedIds, axis, direction * rotateStep),
+        apply: (previous) =>
+          constrainDesignEdit(
+            previous,
+            addPiecesRotation(previous, selectedIds, axis, direction * rotateStep),
+            geometryLookup(libraryByIdRef.current),
+          ),
       });
     },
     [selectedIds, rotateStep],
@@ -529,7 +567,12 @@ export default function App() {
     (axis: RotationAxis, degrees: number) => {
       dispatchHistory({
         type: 'edit',
-        apply: (previous) => setPiecesRotation(previous, selectedIds, axis, degrees),
+        apply: (previous) =>
+          constrainDesignEdit(
+            previous,
+            setPiecesRotation(previous, selectedIds, axis, degrees),
+            geometryLookup(libraryByIdRef.current),
+          ),
       });
     },
     [selectedIds],
@@ -539,7 +582,12 @@ export default function App() {
     (axis: RotationAxis) => {
       dispatchHistory({
         type: 'edit',
-        apply: (previous) => flipPiecesRotation(previous, selectedIds, axis),
+        apply: (previous) =>
+          constrainDesignEdit(
+            previous,
+            flipPiecesRotation(previous, selectedIds, axis),
+            geometryLookup(libraryByIdRef.current),
+          ),
       });
     },
     [selectedIds],
@@ -548,7 +596,12 @@ export default function App() {
   const resetOrientationSelected = useCallback(() => {
     dispatchHistory({
       type: 'edit',
-      apply: (previous) => resetPiecesRotation(previous, selectedIds),
+      apply: (previous) =>
+        constrainDesignEdit(
+          previous,
+          resetPiecesRotation(previous, selectedIds),
+          geometryLookup(libraryByIdRef.current),
+        ),
     });
   }, [selectedIds]);
 
@@ -556,7 +609,12 @@ export default function App() {
     (axis: RotationAxis) => {
       dispatchHistory({
         type: 'edit',
-        apply: (previous) => addPiecesRotation(previous, selectedIds, axis, 90),
+        apply: (previous) =>
+          constrainDesignEdit(
+            previous,
+            addPiecesRotation(previous, selectedIds, axis, 90),
+            geometryLookup(libraryByIdRef.current),
+          ),
       });
     },
     [selectedIds],
@@ -567,7 +625,12 @@ export default function App() {
     // the panel's typed fields, which apply to the whole selection.
     dispatchHistory({
       type: 'edit',
-      apply: (previous) => setPiecesRotation(previous, [placedId], axis, degrees),
+      apply: (previous) =>
+        constrainDesignEdit(
+          previous,
+          setPiecesRotation(previous, [placedId], axis, degrees),
+          geometryLookup(libraryByIdRef.current),
+        ),
     });
   }, []);
 
