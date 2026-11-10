@@ -1,4 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
+import * as THREE from 'three';
+import { defaultPlacement } from '../src/app/design';
+import { parsePieceGeometry } from '../src/three/loadPieceFile';
+import { HANDLE_ARC_DEG, handlePoint, rotationHandleRadius } from '../src/three/rotationHandles';
+import { createFramingCamera } from '../src/three/workplane';
 
 async function startDesign(page: import('@playwright/test').Page, name = 'Test Design') {
   const dialog = page.getByRole('dialog');
@@ -74,32 +80,33 @@ test('rotates a piece from the X handle and updates the live angle', async ({ pa
   }
 
   const hoverNote = page.locator('.handle-hover-note');
-  let handlePoint: { x: number; y: number } | null = null;
-  for (
-    let y = bounds.y + bounds.height * 0.08;
-    y < bounds.y + bounds.height * 0.78 && handlePoint === null;
-    y += 14
-  ) {
-    for (
-      let x = bounds.x + bounds.width * 0.2;
-      x < bounds.x + bounds.width * 0.8 && handlePoint === null;
-      x += 14
-    ) {
-      await page.mouse.move(x, y);
-      if ((await hoverNote.allTextContents()).some((text) => text.includes('about X'))) {
-        handlePoint = { x, y };
-      }
-    }
-  }
-  expect(handlePoint, 'the red X rotation handle should respond to hover').not.toBeNull();
-  if (handlePoint === null) {
-    throw new Error('Could not find the X rotation handle in the viewport.');
-  }
-
+  // Project the knob's known world position instead of sweeping thousands of
+  // canvas pixels. Hover and drag still use real mouse input and browser raycasts.
+  const bytes = readFileSync(new URL('../public/library/girder-1x6.stl', import.meta.url));
+  const { geometry, sizeMm } = parsePieceGeometry(new Uint8Array(bytes).buffer, 'girder-1x6.stl', {
+    assumeZUp: true,
+  });
+  geometry.computeBoundingSphere();
+  const position = defaultPlacement(0, sizeMm);
+  const centre = geometry.boundingBox!.getCenter(new THREE.Vector3());
+  centre.add(new THREE.Vector3(position.x, position.y, position.z));
+  const knob = handlePoint('x', HANDLE_ARC_DEG.x.start)
+    .multiplyScalar(rotationHandleRadius(geometry.boundingSphere!.radius))
+    .add(centre);
+  const camera = createFramingCamera(bounds.width / bounds.height);
+  camera.position.multiplyScalar(0.8 ** 4);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+  knob.project(camera);
+  geometry.dispose();
+  const target = {
+    x: bounds.x + ((knob.x + 1) / 2) * bounds.width,
+    y: bounds.y + ((1 - knob.y) / 2) * bounds.height,
+  };
+  await page.mouse.move(target.x, target.y);
   await expect(hoverNote).toContainText('about X');
-  await page.mouse.move(handlePoint.x, handlePoint.y);
   await page.mouse.down();
-  await page.mouse.move(handlePoint.x + 22, handlePoint.y - 28, { steps: 8 });
+  await page.mouse.move(target.x + 22, target.y - 28, { steps: 8 });
   await page.mouse.up();
 
   const angleBadge = page.locator('.angle-badge');
