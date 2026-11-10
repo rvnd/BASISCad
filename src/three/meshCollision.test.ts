@@ -8,6 +8,20 @@ import { parseLibraryHoles } from '../app/libraryHoles';
 const pose = (x = 0, y = 0, z = 0) => new THREE.Matrix4().makeTranslation(x, y, z);
 
 describe('closed-mesh collision', () => {
+  it('distinguishes diagonal corner contact from a shallow penetration with overlapping bounds', () => {
+    const box = new THREE.BoxGeometry(2, 2, 2);
+    const rotation = new THREE.Matrix4().makeRotationY(Math.PI / 4);
+    const contact = 1 + Math.SQRT1_2;
+    for (const [offset, expected] of [
+      [0, false],
+      [0.001, false],
+      [-0.001, true],
+    ] as const) {
+      rotation.setPosition(contact + offset, 0, contact + offset);
+      expect(meshesOverlap(box, pose(), box, rotation)).toBe(expected);
+      expect(meshesOverlap(box, rotation, box, pose())).toBe(expected);
+    }
+  });
   it('allows touching faces and edges, but detects partial overlap and containment', () => {
     const box = new THREE.BoxGeometry(10, 10, 10);
     expect(meshesOverlap(box, pose(), box, pose(10))).toBe(false);

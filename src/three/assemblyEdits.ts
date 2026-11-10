@@ -7,7 +7,13 @@ import { setPiecesRotation } from '../app/design';
 import { normalizeAngleDeg } from '../app/rotation';
 import { WORKPLANE_HALF_MM } from '../app/constants';
 import { canPlace, constrainDesignEdit, geometryLookup, pieceBounds } from './designConstraints';
-import { pieceQuaternion, quaternionRotation, transformPiece } from './pieceTransforms';
+import {
+  pieceMatrix,
+  pieceQuaternion,
+  quaternionRotation,
+  transformPiece,
+} from './pieceTransforms';
+import { meshesOverlap } from './meshCollision';
 import { canonicalAxis, designHoles, worldHole } from './connectionHoles';
 
 export function assemblyBounds(
@@ -96,7 +102,32 @@ function valid(
   library: ReadonlyMap<string, LibraryPiece>,
 ): boolean {
   const geometry = geometryLookup(library);
-  return placed.every((piece) => !ids.has(piece.id) || canPlace(piece, placed, geometry));
+  const fixed = placed.filter((piece) => !ids.has(piece.id));
+  return placed.every((piece) => !ids.has(piece.id) || canPlace(piece, fixed, geometry));
+}
+
+/** A common rigid transform preserves member-to-member contacts. Check them once. */
+function rigidMembersClear(
+  placed: readonly PlacedPiece[],
+  ids: ReadonlySet<string>,
+  library: ReadonlyMap<string, LibraryPiece>,
+): boolean {
+  const members = placed.filter((piece) => ids.has(piece.id)),
+    geometry = geometryLookup(library);
+  for (let i = 0; i < members.length; i++) {
+    const piece = members[i]!,
+      mesh = geometry(piece);
+    if (!mesh) return false;
+    for (let j = i + 1; j < members.length; j++) {
+      const other = members[j]!,
+        otherMesh = geometry(other);
+      if (!otherMesh) return false;
+      if (piece.fastener?.clearanceOverride || other.fastener?.clearanceOverride) continue;
+      if (meshesOverlap(mesh, pieceMatrix(piece, mesh), otherMesh, pieceMatrix(other, otherMesh)))
+        return false;
+    }
+  }
+  return true;
 }
 
 export function moveAssembly(
@@ -115,6 +146,7 @@ export function moveAssembly(
     target.z - pose.position.z,
   );
   if (delta.lengthSq() < 1e-16) return placed;
+  if (!rigidMembersClear(placed, ids, library)) return placed;
   const steps = sweep ? Math.max(1, Math.ceil(delta.length())) : 1;
   let result = placed;
   for (let i = 1; i <= steps; i++) {
@@ -164,6 +196,7 @@ export function rotateAssembly(
   if (delta.w < 0) delta.set(-delta.x, -delta.y, -delta.z, -delta.w);
   const angle = 2 * Math.acos(Math.min(1, delta.w));
   if (angle < 1e-8) return placed;
+  if (!rigidMembersClear(placed, ids, library)) return placed;
   const steps = Math.max(1, Math.ceil(THREE.MathUtils.radToDeg(angle) / 3)),
     geometry = geometryLookup(library);
   let result = placed;
