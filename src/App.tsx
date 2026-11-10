@@ -17,7 +17,8 @@ import { fastenerName } from './app/connections';
 import type { HoleRef } from './app/connections';
 import type { HoleTarget } from './three/connectionHoles';
 import { connectPieces, DEFAULT_CONNECTION_OPTIONS } from './three/connectPieces';
-import { fastenStack } from './three/fastening';
+import { alignedFastenerTargets, fastenStack } from './three/fastening';
+import { sameHole } from './app/connections';
 import {
   addPiecesRotation,
   centerDesign,
@@ -105,6 +106,7 @@ function readInitialProjectState(): {
  */
 export default function App() {
   const viewportRef = useRef<ViewportHandle | null>(null);
+  const libraryByIdRef = useRef(new Map<string, LibraryPiece>());
   const [viewportReady, setViewportReady] = useState(false);
   const [currentView, setCurrentView] = useState<CameraViewId>(DEFAULT_CAMERA_VIEW_ID);
   const [importedPieces, setImportedPieces] = useState<readonly LibraryPiece[]>([]);
@@ -118,6 +120,10 @@ export default function App() {
     createDesignHistory(),
   );
   const placed = history.present;
+  const historyRef = useRef(history);
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
   const placedRef = useRef(placed);
   useEffect(() => {
     placedRef.current = placed;
@@ -143,6 +149,9 @@ export default function App() {
   const [snapHoles, setSnapHoles] = useState(true);
   const [alignedHoleCount, setAlignedHoleCount] = useState(0);
   const [connecting, setConnecting] = useState(false);
+  const [fastening, setFastening] = useState(false);
+  const idlePlacedRef = useRef(placed);
+  const editStartPlacedRef = useRef(placed);
   const [firstHole, setFirstHole] = useState<readonly HoleRef[] | null>(null);
   const [holeTargets, setHoleTargets] = useState<readonly HoleTarget[]>([]);
   const [connectionOptions, setConnectionOptions] = useState(DEFAULT_CONNECTION_OPTIONS);
@@ -153,14 +162,59 @@ export default function App() {
   const [pendingScrew, setPendingScrew] = useState<HoleRef | null>(null);
   const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
   const cancelConnection = useCallback(() => {
+    idlePlacedRef.current = placedRef.current;
     setConnecting(false);
+    setFastening(false);
     setFirstHole(null);
     setPendingScrew(null);
     dispatchHistory({ type: 'end-edit' });
   }, []);
+  const stepHistory = useCallback(
+    (type: 'undo' | 'redo') => {
+      cancelConnection();
+      idlePlacedRef.current = reduceDesignHistory(historyRef.current, { type }).present;
+      dispatchHistory({ type });
+    },
+    [cancelConnection],
+  );
   useEffect(() => {
-    viewportRef.current?.setHoleMarkersEnabled(connecting);
-  }, [connecting, viewportReady]);
+    viewportRef.current?.setHoleMarkersEnabled(connecting || fastening, fastening ? 30 : 15);
+  }, [connecting, fastening, viewportReady]);
+  useEffect(() => {
+    if (
+      history.transactionStart !== null ||
+      pendingScrew !== null ||
+      idlePlacedRef.current === placed
+    )
+      return;
+    const before = idlePlacedRef.current;
+    idlePlacedRef.current = placed;
+    // Reopening or replacing a design does not ask to change its saved connections.
+    if (!before.some((piece) => placed.some((entry) => entry.id === piece.id))) return;
+    const oldStock = new Map(
+      before.filter((piece) => !piece.fastener).map((piece) => [piece.id, piece]),
+    );
+    const stockChanged = placed.some((piece) => {
+      if (piece.fastener) return false;
+      const old = oldStock.get(piece.id);
+      return (
+        !old ||
+        (['x', 'y', 'z'] as const).some(
+          (axis) =>
+            piece.position[axis] !== old.position[axis] ||
+            piece.rotation[axis] !== old.rotation[axis],
+        )
+      );
+    });
+    if (!stockChanged) return;
+    const oldKeys = new Set(
+      alignedFastenerTargets(before, libraryByIdRef.current, true).map((target) => target.key),
+    );
+    const target = alignedFastenerTargets(placed, libraryByIdRef.current, true).find(
+      (entry) => !oldKeys.has(entry.key),
+    );
+    if (target && snapHoles) setPendingScrew(target.hole);
+  }, [placed, history.transactionStart, pendingScrew, snapHoles]);
   useEffect(() => {
     if (!connectionNotice) return;
     const timer = window.setTimeout(() => setConnectionNotice(null), 6000);
@@ -255,12 +309,11 @@ export default function App() {
         return;
       }
       event.preventDefault();
-      cancelConnection();
-      dispatchHistory({ type: event.shiftKey ? 'redo' : 'undo' });
+      stepHistory(event.shiftKey ? 'redo' : 'undo');
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [cancelConnection]);
+  }, [cancelConnection, stepHistory]);
 
   const onViewportReady = useCallback((handle: ViewportHandle | null) => {
     viewportRef.current = handle;
@@ -316,7 +369,6 @@ export default function App() {
 
   // The viewport's piece callbacks must keep a stable identity (the
   // viewport mounts once), so they read the library through a ref.
-  const libraryByIdRef = useRef(new Map<string, LibraryPiece>());
   useEffect(() => {
     libraryByIdRef.current = new Map(libraryPieces.map((piece) => [piece.id, piece]));
   }, [libraryPieces]);
@@ -382,6 +434,7 @@ export default function App() {
   );
 
   const startDesign = useCallback((name: string) => {
+    idlePlacedRef.current = [];
     clearRecoveryDraft(window.localStorage);
     setRecoveryDraft(null);
     setActiveDesign({ id: createDesignId(), name });
@@ -400,6 +453,7 @@ export default function App() {
   }, []);
 
   const openSavedDesign = useCallback((design: DesignDocument) => {
+    idlePlacedRef.current = design.placed;
     setActiveDesign({ id: design.id, name: design.name });
     dispatchHistory({ type: 'replace', placed: design.placed });
     setSelectedIds([]);
@@ -442,6 +496,7 @@ export default function App() {
     if (recoveryDraft === null) {
       return;
     }
+    idlePlacedRef.current = recoveryDraft.placed;
     setActiveDesign({ id: recoveryDraft.id, name: recoveryDraft.name });
     dispatchHistory({ type: 'replace', placed: recoveryDraft.placed });
     setSelectedIds([]);
@@ -463,13 +518,27 @@ export default function App() {
       onHoleTargets: setHoleTargets,
       onAlignmentChange: setAlignedHoleCount,
       onBeginEdit(): void {
+        editStartPlacedRef.current = placedRef.current;
         dragBaseHeights.current = new Map(
           placedRef.current.map((piece) => [piece.id, piece.position.y]),
         );
         dispatchHistory({ type: 'begin-edit' });
       },
-      onEndEdit(): void {
-        dispatchHistory({ type: 'end-edit' });
+      onEndEdit(allowPrompt = true): void {
+        const after = placedRef.current;
+        idlePlacedRef.current = after;
+        const oldKeys = new Set(
+          alignedFastenerTargets(editStartPlacedRef.current, libraryByIdRef.current, true).map(
+            (target) => target.key,
+          ),
+        );
+        const target = allowPrompt
+          ? alignedFastenerTargets(after, libraryByIdRef.current, true).find(
+              (entry) => !oldKeys.has(entry.key),
+            )
+          : undefined;
+        if (target) setPendingScrew(target.hole);
+        else dispatchHistory({ type: 'end-edit' });
       },
       onSelectPiece(placedId: string, additive: boolean): void {
         setSelectedIds((previous) => toggleSelection(previous, placedId, additive));
@@ -735,6 +804,31 @@ export default function App() {
     cancelConnection();
   };
 
+  const fastenerTargets = useMemo(
+    () => alignedFastenerTargets(placed, new Map(libraryPieces.map((piece) => [piece.id, piece]))),
+    [placed, libraryPieces],
+  );
+  const pickFastener = (members: readonly HoleRef[]) => {
+    const target = fastenerTargets.find((entry) =>
+      members.some((hole) => sameHole(hole, entry.hole)),
+    );
+    if (target) {
+      const next = fastenStack(
+        placed,
+        libraryByIdRef.current,
+        target.hole,
+        `fastener-${createDesignId()}`,
+        true,
+      );
+      if (next) dispatchHistory({ type: 'edit', apply: () => next });
+      else
+        setConnectionNotice(
+          'No fastener could be placed above the workplane. Raise or unlock the stack and retry.',
+        );
+    }
+    cancelConnection();
+  };
+
   const selectedPieces: readonly { id: string; name: string }[] = selectedIds.flatMap((id) => {
     const piece = placed.find((entry) => entry.id === id);
     const libraryPiece =
@@ -802,12 +896,10 @@ export default function App() {
         saveStatus={saveStatus}
         onRename={() => showDialog('rename')}
         onUndo={() => {
-          cancelConnection();
-          dispatchHistory({ type: 'undo' });
+          stepHistory('undo');
         }}
         onRedo={() => {
-          cancelConnection();
-          dispatchHistory({ type: 'redo' });
+          stepHistory('redo');
         }}
         onSave={saveActiveDesign}
         onOpen={() => showDialog('open')}
@@ -830,10 +922,32 @@ export default function App() {
           snapHoles={snapHoles}
           alignedHoleCount={alignedHoleCount}
           onSnapHolesChange={setSnapHoles}
+          fastening={fastening}
+          canFasten={fastenerTargets.length > 0 && pendingScrew === null}
+          onFasten={() => {
+            cancelConnection();
+            setFastening(!fastening);
+            if (!fastenerTargets.length)
+              setConnectionNotice('No empty aligned holes. Align two to four layers first.');
+          }}
         />
         <div className="viewport-wrap">
           <Viewport onReady={onViewportReady} designCallbacks={designCallbacks} />
           {connecting && <HolePicker targets={holeTargets} first={firstHole} onPick={pickHole} />}
+          {fastening && (
+            <HolePicker
+              fastener
+              targets={holeTargets.filter(
+                (target) =>
+                  !target.occupied &&
+                  target.members.some((hole) =>
+                    fastenerTargets.some((entry) => sameHole(hole, entry.hole)),
+                  ),
+              )}
+              first={null}
+              onPick={pickFastener}
+            />
+          )}
           {connectionNotice && (
             <p className="connection-notice" role="alert">
               {connectionNotice}
@@ -844,7 +958,7 @@ export default function App() {
               {storageError}
             </p>
           )}
-          {!connecting && (
+          {!connecting && !fastening && (
             <MoveRotatePanel
               key={singleSelected?.id ?? `multi-${selectedIds.length}`}
               single={singleSelected}
@@ -862,7 +976,9 @@ export default function App() {
               onResetOrientation={resetOrientationSelected}
             />
           )}
-          {badgeAxis !== null &&
+          {!connecting &&
+            !fastening &&
+            badgeAxis !== null &&
             selectionMode === 'rotate' &&
             selectedIds.includes(badgeAxis.placedId) &&
             (() => {

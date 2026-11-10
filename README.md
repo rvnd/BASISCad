@@ -150,7 +150,7 @@ without rewrites:
 
 ## Milestones
 
-Milestones 0–8 are implemented. Milestone 6 uses the library's 3D bore
+Milestones 0–9 are implemented. Milestone 6 uses the library's 3D bore
 metadata for snapping at any orientation, including upright girders and
 brace arms. It measures the actual wall around each hole, updates green
 rings on every aligned hole, and supports the 2 mm tolerance, Snap holes
@@ -164,6 +164,11 @@ Milestone 8 adds Connect: pick two hole markers, retry difficult placements,
 join next to an existing screw, and swing a singly screwed piece to its next
 connection. Existing assemblies stay fixed unless their movement is explicitly
 allowed. Screw/nut pairs and their hole references survive save and undo.
+
+Milestone 9 asks once when a new stack aligns and chooses the screw length
+automatically. The Screw + Nut control shows large targets at empty aligned
+holes. Adjacent pairs, visible nuts, clearance overrides, and removal of
+hardware without moving the stock are supported.
 
 The build follows the milestone plan in
 [`docs/milestone-plan.md`](docs/milestone-plan.md)

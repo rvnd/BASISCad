@@ -58,6 +58,8 @@ export function canPlace(
   const matrix = pieceMatrix(piece, mesh);
   return others.every((other) => {
     if (other.id === piece.id) return true;
+    // A requested hardware-clearance override never permits stock/stock overlap or a floor crossing.
+    if (piece.fastener?.clearanceOverride || other.fastener?.clearanceOverride) return true;
     const otherMesh = geometry(other);
     return !otherMesh || !meshesOverlap(mesh, matrix, otherMesh, pieceMatrix(other, otherMesh));
   });

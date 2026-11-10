@@ -121,6 +121,13 @@ body {
   outline: 2px solid #d03f43;
   outline-offset: 2px;
 }
+.fastener-target {
+  width: 26px;
+  height: 26px;
+  font-size: 23px;
+  line-height: 23px;
+  color: #222;
+}
 .connection-hint,
 .connection-notice {
   position: absolute;

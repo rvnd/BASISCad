@@ -32,6 +32,9 @@ interface ViewControlsProps {
   snapHoles: boolean;
   alignedHoleCount: number;
   onSnapHolesChange: (enabled: boolean) => void;
+  fastening: boolean;
+  canFasten: boolean;
+  onFasten: () => void;
 }
 
 export default function ViewControls({
@@ -49,6 +52,9 @@ export default function ViewControls({
   snapHoles,
   alignedHoleCount,
   onSnapHolesChange,
+  fastening,
+  canFasten,
+  onFasten,
 }: ViewControlsProps) {
   return (
     <aside className="side-column left-column" aria-label="View controls">
@@ -122,6 +128,17 @@ export default function ViewControls({
             </p>
           </>
         )}
+        <button
+          type="button"
+          className="control-button"
+          aria-label="Screw + Nut"
+          title="Add a paired screw and nut at an aligned hole"
+          aria-pressed={fastening}
+          disabled={!canFasten}
+          onClick={onFasten}
+        >
+          ⊕ Screw + Nut
+        </button>
         <button
           type="button"
           className="control-button trash-button"

@@ -16,8 +16,9 @@ import {
 } from './connectionHoles';
 import { holesAlign } from './orientedHoles';
 import { canPlace, geometryLookup } from './designConstraints';
-import { fastenStack } from './fastening';
+import { alignedFastenerTargets, fastenStack } from './fastening';
 import { pieceMatrix } from './pieceTransforms';
+import { createDesignScene } from './designScene';
 
 const catalog = parseLibraryHoles(
   JSON.parse(readFileSync(new URL('../../public/library/holes.json', import.meta.url), 'utf8')),
@@ -290,5 +291,108 @@ describe('connection markers', () => {
     const holes = designHoles([piece('a'), piece('b', 0, 30)], library);
     expect(holeStack(holes, ref('a', 0))).toHaveLength(1);
     expect(fastenStack([piece('a'), piece('b', 0, 30)], library, ref('a'), 'unit')).toBeNull();
+  });
+});
+
+describe('automatic fastening', () => {
+  it('picks the visible nut through the broad hit areas of decorative stock outlines and hidden selection boxes', () => {
+    const placed = fastenStack(
+      [piece('a', 0, 10), piece('b', 0, 13.175)],
+      library,
+      ref('a'),
+      'unit',
+    )!;
+    const unit = placed.at(-1)!;
+    const scene = new THREE.Scene(),
+      design = createDesignScene(scene);
+    design.sync(placed, [...library.values()], []);
+    scene.updateMatrixWorld(true);
+    const target = new THREE.Vector3(unit.position.x, unit.position.y + 1, unit.position.z + 3.8);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 2000);
+    camera.position
+      .copy(target)
+      .add(new THREE.Vector3(0, 250, 1400).normalize().multiplyScalar(500));
+    camera.lookAt(target);
+    camera.updateMatrixWorld();
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(), camera);
+    const first = ray.intersectObjects(scene.getObjectByName('design')!.children, true)[0]!;
+    expect(first.object).toBeInstanceOf(THREE.LineSegments);
+    expect(design.pick(0, 0, camera)).toBe('unit');
+    design.dispose();
+  });
+  it.each([3, 4])(
+    'chooses a half-inch paired fastener for %i layers without changing the stock',
+    (layers) => {
+      const stock = Array.from({ length: layers }, (_, i) =>
+        piece(`layer-${i}`, 0, 10 + i * 3.175),
+      );
+      const targets = alignedFastenerTargets(stock, library);
+      expect(targets).toHaveLength(6);
+      expect(targets[0]!.layers).toBe(layers);
+      const result = fastenStack(stock, library, ref('layer-0'), 'unit')!;
+      expect(result).not.toBeNull();
+      clear(result);
+      expect(result.at(-1)!.fastener!.lengthInches).toBe(0.5);
+      expect(result.at(-1)!.fastener!.holes).toHaveLength(layers);
+      for (let i = 0; i < stock.length; i++) expect(result[i]).toBe(stock[i]);
+      expect(alignedFastenerTargets(result, library)).toHaveLength(5);
+    },
+  );
+
+  it('aligns the free layers to a locked anchor even when the user picked the free layer', () => {
+    const locked = { ...piece('fixed', 0, 10), locked: true },
+      free = piece('free', 1, 13.175);
+    const result = fastenStack([locked, free], library, ref('free', 2), 'unit')!;
+    expect(result).not.toBeNull();
+    clear(result);
+    expect(result[0]).toBe(locked);
+    expect(result[1]!.position.x).toBeCloseTo(0, 5);
+    const holes = designHoles(result, library);
+    const a = worldHole(holes, ref('fixed', 2))!,
+      b = worldHole(holes, ref('free', 2))!;
+    expect(a.center.x).toBeCloseTo(b.center.x, 5);
+  });
+  it('lets Yes override shaft clearance in an aligned locked stack without moving either piece', () => {
+    const stock = [
+      { ...piece('a', 0, 10), locked: true },
+      { ...piece('b', 1, 13.175), locked: true },
+    ];
+    expect(fastenStack(stock, library, ref('a'), 'unit')).toBeNull();
+    const result = fastenStack(stock, library, ref('a'), 'unit', true)!;
+    expect(result).not.toBeNull();
+    expect(result[0]).toBe(stock[0]);
+    expect(result[1]).toBe(stock[1]);
+    expect(result.at(-1)!.fastener!.clearanceOverride).toBe(true);
+    expect(fastenStack(result, library, ref('a', 1), 'adjacent', true)).not.toBeNull();
+  });
+
+  it('records a requested clearance override, permits the next screw, and keeps stock collisions and the floor mandatory', () => {
+    const stock = [piece('a', 0, 10), piece('b', 0, 13.175)];
+    const bore = worldHole(designHoles(stock, library), ref('a'))!;
+    registerGeometry('block', new THREE.BoxGeometry(18, 2, 18).translate(0, 1, 0));
+    const withBlock = new Map(library);
+    withBlock.set('block', {
+      ...library.get('girder-1x6')!,
+      id: 'block',
+      geometryId: 'block',
+      holes: [],
+    });
+    const blocker = (id: string, y: number): PlacedPiece => ({
+      ...piece(id, bore.center.x, y),
+      libraryId: 'block',
+    });
+    const before = [...stock, blocker('above', 16.35), blocker('below', 8)];
+    const lookup = geometryLookup(withBlock);
+    for (const entry of before) expect(canPlace(entry, before, lookup)).toBe(true);
+    expect(fastenStack(before, withBlock, ref('a'), 'unit')).toBeNull();
+    const forced = fastenStack(before, withBlock, ref('a'), 'unit', true)!;
+    expect(forced).not.toBeNull();
+    expect(forced.at(-1)!.fastener!.clearanceOverride).toBe(true);
+    expect(fastenStack(forced, withBlock, ref('a', 1), 'next', true)).not.toBeNull();
+    expect(canPlace({ ...forced.at(-1)!, position: { x: 0, y: -100, z: 0 } }, forced, lookup)).toBe(
+      false,
+    );
+    expect(canPlace({ ...stock[0]!, id: 'overlap' }, forced, lookup)).toBe(false);
   });
 });

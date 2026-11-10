@@ -26,7 +26,7 @@ import type { RotationAxis } from './rotationHandles';
  */
 
 export interface ViewportHandle {
-  setHoleMarkersEnabled(enabled: boolean): void;
+  setHoleMarkersEnabled(enabled: boolean, spacingPx?: number): void;
   cameraPosition(): PositionMm;
   dispose(): void;
   /** Move the camera to a named view (Top / Front / … / 3D), looking at the workplane centre. */
@@ -60,7 +60,7 @@ export interface ViewportDesignCallbacks {
   onHoleTargets?(targets: readonly HoleTarget[]): void;
   onAlignmentChange?(count: number): void;
   onBeginEdit(): void;
-  onEndEdit(): void;
+  onEndEdit(allowFasteningPrompt?: boolean): void;
   onSelectPiece(placedId: string, additive: boolean): void;
   onDeselectAll(): void;
   onDragPiece(placedId: string, x: number, z: number, y?: number): void;
@@ -168,6 +168,7 @@ export function createViewport(
   let selectionMode: SelectionMode = 'move';
   let holeSnappingEnabled = true;
   let holePicking = false;
+  let markerSpacingPx = 15;
   let holesDirty = true;
   let lastHolesUpdate = 0;
   controls.addEventListener('change', () => {
@@ -246,7 +247,7 @@ export function createViewport(
       if (gesture.kind === 'handle' && designCallbacks !== undefined) {
         designCallbacks.onHandleDrag(null, null);
       }
-      designCallbacks?.onEndEdit();
+      designCallbacks?.onEndEdit(holeSnappingEnabled && !event.altKey);
       gesture = null;
     } else if (downAt !== null && !moved && designCallbacks !== undefined) {
       designCallbacks.onDeselectAll();
@@ -408,7 +409,7 @@ export function createViewport(
       if (gesture.kind === 'handle') {
         designCallbacks?.onHandleDrag(null, null);
       }
-      designCallbacks?.onEndEdit();
+      designCallbacks?.onEndEdit(false);
     }
     gesture = null;
     downAt = null;
@@ -453,7 +454,9 @@ export function createViewport(
       holesDirty = false;
       lastHolesUpdate = now;
       const rect = renderer.domElement.getBoundingClientRect();
-      designCallbacks?.onHoleTargets?.(designScene.holeTargets(camera, rect.width, rect.height));
+      designCallbacks?.onHoleTargets?.(
+        designScene.holeTargets(camera, rect.width, rect.height, markerSpacingPx),
+      );
     }
   };
   tick();
@@ -487,7 +490,8 @@ export function createViewport(
   };
 
   return {
-    setHoleMarkersEnabled(enabled): void {
+    setHoleMarkersEnabled(enabled, spacingPx = 15): void {
+      markerSpacingPx = spacingPx;
       holePicking = enabled;
       holesDirty = true;
       designScene.setHandlesEnabled(!enabled && selectionMode === 'rotate');

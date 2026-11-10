@@ -2,7 +2,7 @@
 
 Source: the repository’s GitHub milestone issues. Complete each milestone’s acceptance checks with unit tests and browser interaction before advancing.
 
-Milestones 0–8 are complete. Local validation: `npm run test:e2e:local`.
+Milestones 0–9 are complete. Local validation: `npm run test:e2e:local`.
 
 ## Milestone 6 — Hole snapping with green rings
 
@@ -60,7 +60,7 @@ Steps:
 
 Done when: you can connect any two holes you pick — including a hole next to an existing screw, and a second connection on a piece that is already screwed to a third piece by swinging it around that screw — without moving the assembly it is joining.
 
-Verification: 182 unit tests, all 22 local Chrome browser tests, formatting, lint, typecheck, and production build passed. Browser flows cover a paired screw with one-step undo/redo, adjacent screws and saved connections, failed picks and retries, and a 90° hinge connection onto a locked assembly without moving its existing pieces or fasteners. Geometry tests cover upright and mixed orientations, blocked layers, floor rejection, and rigid movement of an assembly only when explicitly enabled. Direct website use confirmed camera-side placement, visible head/nut clearance, and rejection of an unpaired hole. Milestone 9 still adds automatic alignment prompts and the dedicated fastener picker.
+Verification: 182 unit tests, all 22 local Chrome browser tests, formatting, lint, typecheck, and production build passed. Browser flows cover a paired screw with one-step undo/redo, adjacent screws and saved connections, failed picks and retries, and a 90° hinge connection onto a locked assembly without moving its existing pieces or fasteners. Geometry tests cover upright and mixed orientations, blocked layers, floor rejection, and rigid movement of an assembly only when explicitly enabled. Direct website use confirmed camera-side placement, visible head/nut clearance, and rejection of an unpaired hole. Milestone 9 adds automatic alignment prompts and the dedicated fastener picker.
 
 ## Milestone 9 — Screws and nuts, automatic
 
@@ -70,19 +70,21 @@ Goal: when holes line up, fastening them takes one "Yes" and nothing else.
 
 Steps:
 
-- [ ] When holes align, ask only "Add screw and nut?" with Yes and Not now. Never ask the user to choose a screw length.
-- [ ] Choose the length automatically from the number of layers in the stack: 3/8 inch for 2 layers, 1/2 inch for 3 or 4 layers.
-- [ ] Always add the nut with the screw. Screw and nut are one unit when moved, saved, printed, or deleted, and the nut is clearly visible.
-- [ ] Add the second way in: a Screw + Nut icon above the trash can. Tapping it, then tapping a hole, adds the fastener there. Show a large clickable "+" marker over each empty aligned hole so the target is not a tiny 3D hole.
-- [ ] Let a screw be added in a hole directly beside a hole that already has one, and keep doing so for several neighbouring holes.
-- [ ] Adjust the stacked pieces automatically for screw and nut clearance while keeping the holes aligned, and if clearance still fails, let the user's Yes override the clearance check and place the screw anyway.
-- [ ] Prevent a second screw in a hole that already has one.
-- [ ] Let the user remove a fastener like any other piece: click the screw head or nut to highlight it, then click the trash can. The pieces stay in place.
-- [ ] Store each screw's connection — which holes, on which pieces — as part of the design, so later milestones can rely on it.
+- [x] When holes align, ask only "Add screw and nut?" with Yes and Not now. Never ask the user to choose a screw length.
+- [x] Choose the length automatically from the number of layers in the stack: 3/8 inch for 2 layers, 1/2 inch for 3 or 4 layers.
+- [x] Always add the nut with the screw. Screw and nut are one unit when moved, saved, printed, or deleted, and the nut is clearly visible.
+- [x] Add the second way in: a Screw + Nut icon above the trash can. Tapping it, then tapping a hole, adds the fastener there. Show a large clickable "+" marker over each empty aligned hole so the target is not a tiny 3D hole.
+- [x] Let a screw be added in a hole directly beside a hole that already has one, and keep doing so for several neighbouring holes.
+- [x] Adjust the stacked pieces automatically for screw and nut clearance while keeping the holes aligned, and if clearance still fails, let the user's Yes override the clearance check and place the screw anyway.
+- [x] Prevent a second screw in a hole that already has one.
+- [x] Let the user remove a fastener like any other piece: click the screw head or nut to highlight it, then click the trash can. The pieces stay in place.
+- [x] Store each screw's connection — which holes, on which pieces — as part of the design, so later milestones can rely on it.
 
 Spec: #6-32 zinc-plated steel screw and nut, always as a pair.
 
 Done when: two stacked girders take a 3/8 inch screw with one Yes, three stacked pieces take a 1/2 inch screw with no extra question, screws can sit in adjacent holes, and deleting a screw leaves both pieces exactly where they were.
+
+Verification: 188 unit tests, formatting, lint, typecheck, and production build passed. All 12 relevant local browser cases were verified: ten passed in the initial run, then the repaired history replay and head/nut deletion cases passed in a focused run. Checks cover automatic 2/3/4-layer lengths, adjacent units, saved joints, large targets at a distant view, deletion without stock movement, snapping prompts, and Alt/toggle bypass. A raycast regression excludes decorative outlines and hidden selection boxes from piece picking. Clearance overrides are stored with hardware; stock/stock collisions and the floor remain mandatory, including locked stacks. Direct website use added a neighbouring pair, selected its nut in Front view, and deleted it with both girders exactly unchanged. CI runs the complete browser suite.
 
 ## Milestone 10 — Group, lock, and hinge at a screw
 

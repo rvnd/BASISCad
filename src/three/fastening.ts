@@ -12,6 +12,55 @@ import { quaternionRotation, rotationLift } from './pieceTransforms';
 
 const EPS = 0.00002;
 
+export interface FastenerTarget {
+  hole: HoleRef;
+  key: string;
+  layers: number;
+}
+
+/** Empty neighbouring stacks, or existing units that need extending after a new layer aligns. */
+export function alignedFastenerTargets(
+  placed: readonly PlacedPiece[],
+  library: ReadonlyMap<string, LibraryPiece>,
+  allowExtension = false,
+): readonly FastenerTarget[] {
+  const holes = designHoles(placed, library),
+    seen = new Set<string>(),
+    targets: FastenerTarget[] = [];
+  for (const hole of holes) {
+    const stack = holeStack(holes, hole);
+    if (stack.length < 2 || stack.length > 4) continue;
+    const key = stack
+      .map((entry) => `${entry.pieceId}:${entry.holeIndex}`)
+      .sort()
+      .join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const units = placed.filter((piece) =>
+      piece.fastener?.holes.some((ref) => stack.some((entry) => sameHole(ref, entry))),
+    );
+    if (
+      units.length &&
+      (!allowExtension ||
+        units.length !== 1 ||
+        stack.every((entry) => units[0]!.fastener!.holes.some((ref) => sameHole(ref, entry))))
+    )
+      continue;
+    const anchor =
+      stack.find((entry) => placed.find((piece) => piece.id === entry.pieceId)?.locked) ??
+      stack.find((entry) =>
+        units.some((unit) => unit.fastener!.holes.some((ref) => sameHole(ref, entry))),
+      ) ??
+      stack[0]!;
+    targets.push({
+      hole: { pieceId: anchor.pieceId, holeIndex: anchor.holeIndex },
+      key,
+      layers: stack.length,
+    });
+  }
+  return targets;
+}
+
 function assemblyIds(placed: readonly PlacedPiece[], pieceId: string): ReadonlySet<string> {
   const pieces = attachedPieceIds(placed, pieceId);
   return new Set([
@@ -84,7 +133,12 @@ export function fastenStack(
   const originalHoles = designHoles(placed, library);
   const originalStack = holeStack(originalHoles, ref);
   if (originalStack.length < 2 || originalStack.length > 4) return null;
-  const anchor = worldHole(originalHoles, ref)!;
+  const anchor =
+    originalStack.find((hole) => placed.find((piece) => piece.id === hole.pieceId)?.locked) ??
+    originalStack.find((hole) =>
+      placed.some((piece) => piece.fastener?.holes.some((entry) => entry.pieceId === hole.pieceId)),
+    ) ??
+    worldHole(originalHoles, ref)!;
   const axis = canonicalAxis(anchor.axis);
   const geometry = geometryLookup(library);
   let aligned = placed;
@@ -101,7 +155,8 @@ export function fastenStack(
       preserveAssembly ||
       placed.some((piece) => ids.has(piece.id) && piece.locked)
     )
-      return null;
+      // Keep anchored stock fixed; the real shaft-clearance check decides whether it fits.
+      continue;
     aligned = translate(aligned, ids, delta);
   }
   const stack = holeStack(designHoles(aligned, library), ref);
@@ -142,7 +197,12 @@ export function fastenStack(
       continue;
     if (moved.some((piece) => involved.has(piece.id) && !canPlace(piece, moved, geometry)))
       continue;
-    if (canPlace(unit, moved, geometry) || overrideClearance) return [...moved, unit];
+    const clear = canPlace(unit, moved, geometry);
+    if (clear || overrideClearance)
+      return [
+        ...moved,
+        clear ? unit : { ...unit, fastener: { ...unit.fastener!, clearanceOverride: true } },
+      ];
   }
   return null;
 }

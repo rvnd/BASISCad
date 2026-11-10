@@ -10,6 +10,7 @@ export interface FastenerConnection {
   holes: readonly HoleRef[];
   lengthInches: 0.375 | 0.5;
   stackDepthMm: number;
+  clearanceOverride?: boolean;
 }
 
 export function fastenerName(unit: FastenerConnection): string {
@@ -60,6 +61,8 @@ export function hingeFastener(placed: readonly PlacedPiece[], pieceId: string): 
 export function isFastenerConnection(value: unknown): value is FastenerConnection {
   if (typeof value !== 'object' || value === null) return false;
   const unit = value as Partial<FastenerConnection>;
+  if (unit.clearanceOverride !== undefined && typeof unit.clearanceOverride !== 'boolean')
+    return false;
   if (unit.lengthInches !== 0.375 && unit.lengthInches !== 0.5) return false;
   if (
     typeof unit.stackDepthMm !== 'number' ||

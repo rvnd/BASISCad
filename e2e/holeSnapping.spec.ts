@@ -63,6 +63,7 @@ test('snaps upright girders and keeps their horizontal-hole rings live', async (
   } finally {
     await page.mouse.up();
   }
+  await page.getByRole('button', { name: 'Not now', exact: true }).click();
   await page.getByRole('button', { name: /Camera view:/ }).click();
   await page.getByRole('menuitem', { name: 'Front', exact: true }).click();
   for (let i = 0; i < 6; i += 1)
@@ -133,6 +134,7 @@ for (const scenario of [
       await page.mouse.up();
       if (scenario.alt) await page.keyboard.up('Alt');
     }
+    if (scenario.snapped) await page.getByRole('button', { name: 'Not now', exact: true }).click();
     // All pointer updates in this drag must be one undoable edit.
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await expect.poll(() => movingPosition(page)).toEqual({ x: 0, z: 20 });

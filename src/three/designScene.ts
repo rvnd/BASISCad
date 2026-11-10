@@ -51,7 +51,12 @@ import type { RotationAxis } from './rotationHandles';
  */
 
 export interface DesignScene {
-  holeTargets(camera: THREE.Camera, width: number, height: number): readonly HoleTarget[];
+  holeTargets(
+    camera: THREE.Camera,
+    width: number,
+    height: number,
+    spacingPx?: number,
+  ): readonly HoleTarget[];
   sync(
     placed: readonly PlacedPiece[],
     library: readonly LibraryPiece[],
@@ -283,7 +288,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
   };
 
   return {
-    holeTargets(camera, width, height) {
+    holeTargets(camera, width, height, spacingPx = 15) {
       return projectHoleTargets(
         worldHoles,
         lastPlaced,
@@ -291,6 +296,7 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
         camera,
         width,
         height,
+        spacingPx,
       );
     },
     sync(
@@ -374,6 +380,8 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
       const hits = raycaster.intersectObjects(group.children, true);
       for (const hit of hits) {
+        // Outlines and selection boxes are decoration; their broad line hit areas can hide a nut.
+        if (!(hit.object instanceof THREE.Mesh)) continue;
         let current: THREE.Object3D | null = hit.object;
         while (current !== null) {
           const placedId = current.userData.placedId;

@@ -63,6 +63,8 @@ describe('stored screw connections', () => {
   it('rejects invalid layer references, repeated pieces, and the wrong automatic length', () => {
     const unit = screw('s', 'a', 'b').fastener!;
     expect(isFastenerConnection(unit)).toBe(true);
+    expect(isFastenerConnection({ ...unit, clearanceOverride: true })).toBe(true);
+    expect(isFastenerConnection({ ...unit, clearanceOverride: 'yes' })).toBe(false);
     expect(isFastenerConnection({ ...unit, lengthInches: 0.5 })).toBe(false);
     expect(
       isFastenerConnection({

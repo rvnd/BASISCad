@@ -91,6 +91,7 @@ export function projectHoleTargets(
   camera: THREE.Camera,
   width: number,
   height: number,
+  spacingPx = 15,
 ): readonly HoleTarget[] {
   const roots = holes.map((_, i) => i);
   const root = (i: number): number => {
@@ -121,14 +122,15 @@ export function projectHoleTargets(
     const anchorX = ((point.x + 1) * width) / 2,
       anchorY = ((1 - point.y) * height) / 2;
     if (anchorX < 0 || anchorX > width || anchorY < 0 || anchorY > height) continue;
-    let x = anchorX,
-      y = anchorY;
+    const margin = spacingPx / 2;
+    let x = Math.max(margin, Math.min(width - margin, anchorX)),
+      y = Math.max(margin, Math.min(height - margin, anchorY));
     for (let attempt = 0; attempt < 100; attempt++) {
-      if (targets.every((target) => Math.hypot(target.x - x, target.y - y) >= 15)) break;
+      if (targets.every((target) => Math.hypot(target.x - x, target.y - y) >= spacingPx)) break;
       const angle = attempt * 2.399963229728653,
         radius = 12 * Math.sqrt(attempt + 1);
-      x = Math.max(8, Math.min(width - 8, anchorX + Math.cos(angle) * radius));
-      y = Math.max(8, Math.min(height - 8, anchorY + Math.sin(angle) * radius));
+      x = Math.max(margin, Math.min(width - margin, anchorX + Math.cos(angle) * radius));
+      y = Math.max(margin, Math.min(height - margin, anchorY + Math.sin(angle) * radius));
     }
     const members = group.map(({ pieceId, holeIndex }) => ({ pieceId, holeIndex }));
     const title = group
