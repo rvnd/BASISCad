@@ -2,7 +2,7 @@
 
 Source: the repository’s GitHub milestone issues. Complete each milestone’s acceptance checks with unit tests and browser interaction before advancing.
 
-Milestones 0–9 are complete. Local validation: `npm run test:e2e:local`.
+Milestones 0–10 are complete. Local validation: `npm run test:e2e:local`.
 
 ## Milestone 6 — Hole snapping with green rings
 
@@ -94,14 +94,16 @@ Goal: assemblies move as one, stay put when locked, and swing where they are mea
 
 Steps:
 
-- [ ] Add small Group, Ungroup, and Lock/Unlock icons at the top of the screen, the same size as each other, enabled only when the selection makes them usable.
-- [ ] Grouped pieces move together. A selected group can be rotated with the rings, the +/- controls, or a typed angle, turning all its pieces and screws together around the group's centre.
-- [ ] Locked pieces cannot be moved or rotated until unlocked.
-- [ ] After a piece is joined by a single screw, add Swing / Hinge at that screw: select the piece, drag it or type an exact angle, and it rotates around the screw while the screw and the other piece stay fixed.
-- [ ] Two screws between the same two pieces stop the swinging — the joint is fixed.
-- [ ] Remove any older Selected Piece and In This Design panels once these top icons exist; they duplicate the same job.
+- [x] Add small Group, Ungroup, and Lock/Unlock icons at the top of the screen, the same size as each other, enabled only when the selection makes them usable.
+- [x] Grouped pieces move together. A selected group can be rotated with the rings, the +/- controls, or a typed angle, turning all its pieces and screws together around the group's centre.
+- [x] Locked pieces cannot be moved or rotated until unlocked.
+- [x] After a piece is joined by a single screw, add Swing / Hinge at that screw: select the piece, drag it or type an exact angle, and it rotates around the screw while the screw and the other piece stay fixed.
+- [x] Two screws between the same two pieces stop the swinging — the joint is fixed.
+- [x] Remove any older Selected Piece and In This Design panels once these top icons exist; they duplicate the same job.
 
 Done when: a two-girder cross can be grouped and rotated as one, locked so it will not move, then unlocked, and a singly-screwed piece swings around its screw to a typed angle while a doubly-screwed one does not move.
+
+Verification: 196 unit tests and all 29 Chromium browser checks passed in CI run 42791978993. Local checks verified group transforms, lock/unlock, ungrouping, typed and dragged hinges, and fixed two-screw joints. The local relay intermittently stalled during screenshots; the save/reopen case passed in native CI and direct website use confirmed an exact round trip. Direct website use also rotated a screwed cross with its curved Y handle, checked the matching angle badge, and confirmed that swinging one piece leaves its partner and hardware unchanged.
 
 ## Milestone 11 — Blueprint labels
 
