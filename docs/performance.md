@@ -36,5 +36,7 @@ relay transport time. They are a comparison, not a frame-rate guarantee.
 Unit tests compare bounds with actual vertices for all 17 pieces, exercise cache
 invalidation, and check shallow contact, internal overlap, and blocked sweeps.
 The browser rendering test uses two pieces: it checks idle draw calls, changed
-camera images, moves, rotations, and exact images after Undo. Existing browser
+camera images, moves, rotations, and restored scene images after Undo. Undo must
+restore the exact saved model; image comparisons exclude control overlays and
+allow small antialiasing differences. Existing browser
 flows cover collisions, snapping, connections, hinges, labels, and tablet input.
