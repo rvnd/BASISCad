@@ -43,6 +43,8 @@ export interface PlacedPiece {
   rotation: RotationDeg;
   fastener?: FastenerConnection;
   groupId?: string;
+  groupRotation?: RotationDeg;
+  hingeAngleDeg?: number;
   locked?: boolean;
 }
 

@@ -41,6 +41,13 @@ function isPlacedPiece(value: unknown): value is PlacedPiece {
     isFiniteNumber(piece.rotation.z) &&
     (piece.fastener === undefined || isFastenerConnection(piece.fastener)) &&
     (piece.locked === undefined || typeof piece.locked === 'boolean') &&
+    (piece.hingeAngleDeg === undefined || isFiniteNumber(piece.hingeAngleDeg)) &&
+    (piece.groupRotation === undefined ||
+      (piece.groupRotation !== null &&
+        typeof piece.groupRotation === 'object' &&
+        isFiniteNumber(piece.groupRotation.x) &&
+        isFiniteNumber(piece.groupRotation.y) &&
+        isFiniteNumber(piece.groupRotation.z))) &&
     (piece.groupId === undefined || (typeof piece.groupId === 'string' && piece.groupId.length > 0))
   );
 }

@@ -19,6 +19,8 @@ import { canPlace, geometryLookup } from './designConstraints';
 import { alignedFastenerTargets, fastenStack } from './fastening';
 import { pieceMatrix } from './pieceTransforms';
 import { createDesignScene } from './designScene';
+import { createGroup, toggleLock } from '../app/groups';
+import { assemblyBounds, moveAssembly, rotateAssembly, swingPiece } from './assemblyEdits';
 
 const catalog = parseLibraryHoles(
   JSON.parse(readFileSync(new URL('../../public/library/holes.json', import.meta.url), 'utf8')),
@@ -394,5 +396,73 @@ describe('automatic fastening', () => {
       false,
     );
     expect(canPlace({ ...stock[0]!, id: 'overlap' }, forced, lookup)).toBe(false);
+  });
+});
+
+describe('group transforms and explicit hinges', () => {
+  it('rotates a screwed group about its complete bounds and preserves every relative transform', () => {
+    const screwed = fastenStack(
+      [piece('a', 0, 10), piece('b', 0, 13.175)],
+      library,
+      ref('a'),
+      'unit',
+    )!;
+    const grouped = createGroup(screwed, ['a', 'b'], 'group');
+    const before = assemblyBounds(
+      grouped,
+      new Set(grouped.map((piece) => piece.id)),
+      library,
+    ).getCenter(new THREE.Vector3());
+    const result = rotateAssembly(grouped, ['a', 'b', 'unit'], { x: 0, y: 90, z: 0 }, library);
+    expect(result).not.toBe(grouped);
+    clear(result);
+    expect(
+      assemblyBounds(result, new Set(result.map((piece) => piece.id)), library)
+        .getCenter(new THREE.Vector3())
+        .distanceTo(before),
+    ).toBeLessThan(1e-6);
+    const transform = pieceMatrix(result[0]!, geometry(result[0]!)!).multiply(
+      pieceMatrix(grouped[0]!, geometry(grouped[0]!)!).invert(),
+    );
+    result.forEach((moved, i) => {
+      const expected = transform
+        .clone()
+        .multiply(pieceMatrix(grouped[i]!, geometry(grouped[i]!)!)).elements;
+      pieceMatrix(moved, geometry(moved)!).elements.forEach((value, j) =>
+        expect(value).toBeCloseTo(expected[j]!, 5),
+      );
+      expect(moved.groupRotation).toEqual({ x: 0, y: 90, z: 0 });
+    });
+  });
+  it('moves the whole group, clamps its floor, and refuses both movement and rotation while locked', () => {
+    const grouped = createGroup([piece('a', -30), piece('b', 30, 0, 30)], ['a', 'b'], 'group');
+    const moved = moveAssembly(grouped, ['a'], { x: 100, y: -50, z: 40 }, library);
+    expect(moved).not.toBe(grouped);
+    clear(moved);
+    expect(moved[1]!.position.x - moved[0]!.position.x).toBeCloseTo(60);
+    const locked = toggleLock(moved, ['a']);
+    expect(moveAssembly(locked, ['a'], { x: 0, y: 0, z: 0 }, library)).toBe(locked);
+    expect(rotateAssembly(locked, ['a'], { x: 0, y: 90, z: 0 }, library)).toBe(locked);
+  });
+  it('swings only one stock piece about the screw, keeps its pivot and partner fixed, and refuses two anchors', () => {
+    const placed = fastenStack(
+      [piece('a', 0, 10), piece('b', 0, 13.175)],
+      library,
+      ref('a'),
+      'unit',
+    )!;
+    const pivot = worldHole(designHoles(placed, library), ref('b'))!.center;
+    const result = swingPiece(placed, 'b', 90, library);
+    expect(result).not.toBe(placed);
+    clear(result);
+    expect(result[0]).toBe(placed[0]);
+    expect(result[2]).toBe(placed[2]);
+    expect(
+      worldHole(designHoles(result, library), ref('b'))!.center.distanceTo(pivot),
+    ).toBeLessThan(1e-6);
+    expect(result[1]!.hingeAngleDeg).toBe(90);
+    const fixed = fastenStack(placed, library, ref('a', 1), 'second')!;
+    expect(swingPiece(fixed, 'b', 90, library)).toBe(fixed);
+    expect(swingPiece(toggleLock(placed, ['b']), 'b', 90, library)[1]!.locked).toBe(true);
   });
 });
