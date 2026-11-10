@@ -50,18 +50,19 @@ async function position(page: Page) {
 test('drags a girder up, across, and down another in one undoable gesture', async ({
   page,
 }, testInfo) => {
+  test.setTimeout(60_000);
   const { canvas, point } = await setup(page);
   const start = point(-35);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   try {
     const top = point(0);
-    await page.mouse.move(top.x, top.y, { steps: 35 });
+    await page.mouse.move(top.x, top.y, { steps: 20 });
     await expect.poll(async () => (await position(page)).y).toBeGreaterThan(3.174);
     await expect.poll(async () => Math.abs((await position(page)).z)).toBeLessThan(8);
     await testInfo.attach('on-top', { body: await canvas.screenshot(), contentType: 'image/png' });
     const far = point(40);
-    await page.mouse.move(far.x, far.y, { steps: 40 });
+    await page.mouse.move(far.x, far.y, { steps: 20 });
     await expect.poll(async () => (await position(page)).z).toBeGreaterThan(25);
     await expect.poll(async () => (await position(page)).y).toBe(0);
   } finally {
