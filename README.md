@@ -86,6 +86,8 @@ npm run test:e2e:local -- --grep 'snaps within 2 mm'
 This runs the same Playwright suite through the local browser relay, with one worker,
 a temporary loopback origin, and a fresh tab for each test. It resets storage only for
 that test origin. Background frame captures keep Chrome's animation frames progressing.
+Relay tabs use Chrome's native viewport and pixel ratio to keep pointer coordinates
+consistent during frame capture; browser tests calculate positions from the canvas bounds.
 The launcher uses `~/.browse/bin/browse` when installed there; set `BROWSE_BIN` for another
 installation. This mode needs no change to the agent's sandbox permissions.
 

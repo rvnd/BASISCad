@@ -37,7 +37,7 @@ Steps:
 
 Done when: you cannot push one girder through another, you can drag a piece up and over a placed piece in one motion, and no rotation can bury a piece under the workplane.
 
-Verification: 157 unit tests, static checks, and production build passed. All 17 browser cases were verified: 16 passed in the full run, then the updated Center Project regression passed separately. Direct website checks confirmed climbing, crossing, descending to height zero, and resting on the actual 3.175 mm girder thickness; the side view was inspected. Numerical collision tolerance: 0.00001 mm. No new runtime dependency is required.
+Verification: 157 unit tests, static checks, and production build passed. All 17 application browser cases were verified: 16 passed in the full run, then the updated Center Project regression passed separately. The long drag uses a 60-second CI budget and fewer input events; the swept checks still cover the intervening travel. A further browser regression checks pointer coordinates during frame capture. Relay tabs retain Chrome’s native pixel ratio to prevent doubled input coordinates. Direct website checks confirmed climbing, crossing, descending to height zero, and resting on the actual 3.175 mm girder thickness; the side view was inspected. Numerical collision tolerance: 0.00001 mm. No new runtime dependency is required.
 
 ## Milestone 8 — Connect: pick two holes to join two pieces
 

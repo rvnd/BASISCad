@@ -48,10 +48,11 @@ export const test = process.env.PLAYWRIGHT_RELAY_URL
         if (!context) throw new Error('The browser relay did not provide a context.');
         await runTest(context);
       },
-      page: async ({ context, baseURL, viewport }, runTest) => {
+      page: async ({ context, baseURL }, runTest) => {
         if (!baseURL) throw new Error('The local browser test URL is missing.');
         const page = await context.newPage();
-        if (viewport) await page.setViewportSize(viewport);
+        // Keep Chrome's native pixel ratio. Forcing a viewport while the relay
+        // captures frames can change the input scale during a click.
         let renderTimer: ReturnType<typeof setInterval> | undefined;
         try {
           const cdp = await context.newCDPSession(page);
