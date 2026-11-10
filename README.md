@@ -150,7 +150,7 @@ without rewrites:
 
 ## Milestones
 
-Milestones 0–13 are implemented. Milestone 6 uses the library's 3D bore
+Milestones 0–14 are implemented. Milestone 6 uses the library's 3D bore
 metadata for snapping at any orientation, including upright girders and
 brace arms. It measures the actual wall around each hole, updates green
 rings on every aligned hole, and supports the 2 mm tolerance, Snap holes
@@ -185,6 +185,15 @@ Milestone 12 adds Print Design: choose Top, Front, Side, or 3D, then preview
 and print two A4 pages. The design page includes outlines and saved labels;
 the budget page includes materials, $1-per-hole pricing, totals, and blank
 evaluation space. CI verifies PDF pagination and keeps the print proof.
+
+Milestone 13 adds a six-step first-use guide beside the workplane. Help
+reopens it, and dismissal is remembered in this browser. The header includes
+working project actions without obsolete milestone hints.
+
+Milestone 14 adds six touch-only axis hold controls on tablet-sized screens.
+A second finger moves or rotates the selected piece on that axis, with
+collision checks and one-step Undo/Redo. Physical tablet verification is
+deferred at the user’s request; actual two-touch browser emulation is tested.
 
 The build follows the milestone plan in
 [`docs/milestone-plan.md`](docs/milestone-plan.md)

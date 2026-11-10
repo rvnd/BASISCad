@@ -2,7 +2,7 @@
 
 Source: the repository’s GitHub milestone issues. Complete each milestone’s acceptance checks with unit tests and browser interaction before advancing.
 
-Milestones 0–13 are complete. Local validation: `npm run test:e2e:local`.
+Milestones 0–14 are implemented and validated; physical tablet verification is deferred at the user’s request. Local validation: `npm run test:e2e:local`.
 
 ## Milestone 6 — Hole snapping with green rings
 
@@ -171,13 +171,15 @@ Goal: on a tablet, one hand chooses the axis and the other hand drags.
 
 Steps:
 
-- [ ] Detect a tablet and show the tablet controls only there. Computer controls stay exactly as they are.
-- [ ] Add Move X, Move Y, Move Z and Rotate X, Rotate Y, Rotate Z buttons at the bottom left of the screen.
-- [ ] Holding one of those buttons with the left hand while dragging on the workplane with the right hand moves or rotates the selected piece on that axis only, including a full 180° rotation.
-- [ ] Keep Undo and Redo reachable in tablet mode.
-- [ ] Test on a real tablet, not only a simulated touch screen — the prototype was never tested on physical hardware.
+- [x] Detect a tablet and show the tablet controls only there. Computer controls stay exactly as they are.
+- [x] Add Move X, Move Y, Move Z and Rotate X, Rotate Y, Rotate Z buttons at the bottom left of the screen.
+- [x] Holding one of those buttons with the left hand while dragging on the workplane with the right hand moves or rotates the selected piece on that axis only, including a full 180° rotation.
+- [x] Keep Undo and Redo reachable in tablet mode.
+- [ ] Test on a real tablet, not only a simulated touch screen — **deferred at the user’s request**.
 
 Done when: on a tablet, holding Rotate Z and dragging turns a piece 180°, and the same screen on a computer shows none of the tablet buttons.
+
+Verification: 210 unit tests and all 36 Chromium browser checks passed in CI run 42799909272. Local Chrome and native CI use two actual touch points to hold an axis and drag the workplane. Checks cover a full 180° Z rotation, all six controls, independent X/Y/Z movement, stopping when the held finger lifts, one-step Undo/Redo, locked controls, and absence on desktop. Camera projection and end-on movement are unit tested. Direct website use reproduced the turn and exact Undo, and the guide and controls were visually inspected without overlap. Touch emulation was removed afterward and desktop controls restored. The physical tablet check remains deferred at the user’s request.
 
 ## Milestone 15 — Test menu and gravity
 
