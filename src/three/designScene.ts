@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { HOLE_TOLERANCE_MM } from '../app/constants';
 import type { PlacedPiece, RotationDeg } from '../app/design';
 import type { LibraryPiece } from '../app/library';
 import { getGeometry } from './libraryGeometry';
@@ -230,6 +231,16 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
   const refreshHoleMarkers = (): void => {
     holeMarkers.clear();
     const aligned = new Map<string, { x: number; z: number; y: number }>();
+    const topById = new Map<string, number>();
+    const libraryById = new Map(lastLibrary.map((piece) => [piece.id, piece]));
+    for (const piece of lastPlaced) {
+      const geometryId = libraryById.get(piece.libraryId)?.geometryId;
+      const geometry = geometryId ? getGeometry(geometryId) : undefined;
+      topById.set(
+        piece.id,
+        (byId.get(piece.id)?.position.y ?? 0) + (geometry?.boundingBox?.max.y ?? 0),
+      );
+    }
     for (let i = 0; i < lastPlaced.length; i += 1) {
       const first = lastPlaced[i];
       if (first === undefined) continue;
@@ -252,17 +263,11 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
               x: second.position.x + b.x * Math.cos(angleB) + b.z * Math.sin(angleB),
               z: second.position.z - b.x * Math.sin(angleB) + b.z * Math.cos(angleB),
             };
-            if (Math.hypot(pointA.x - pointB.x, pointA.z - pointB.z) > 2) continue;
-            const firstGeometryId = lastLibrary.find(
-              (entry) => entry.id === first.libraryId,
-            )?.geometryId;
-            const firstGeometry = firstGeometryId ? getGeometry(firstGeometryId) : undefined;
-            const y =
-              (byId.get(first.id)?.position.y ?? 0) +
-              (firstGeometry?.boundingBox?.max.y ?? 0) +
-              0.8;
+            if (Math.hypot(pointA.x - pointB.x, pointA.z - pointB.z) > HOLE_TOLERANCE_MM) continue;
+            const y = Math.max(topById.get(first.id) ?? 0, topById.get(second.id) ?? 0) + 0.8;
             for (const point of [pointA, pointB]) {
-              aligned.set(`${point.x.toFixed(2)},${point.z.toFixed(2)}`, { ...point, y });
+              const key = `${point.x.toFixed(2)},${point.z.toFixed(2)}`;
+              aligned.set(key, { ...point, y: Math.max(y, aligned.get(key)?.y ?? y) });
             }
           }
         }

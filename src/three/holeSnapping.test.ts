@@ -74,6 +74,28 @@ describe('hole detection and snapping', () => {
     expect(result).toEqual({ x: 7.9, z: 0, snapped: false });
   });
 
+  it.each([
+    { x: 2, z: 0, snapped: true },
+    { x: 2.001, z: 0, snapped: false },
+    { x: 1.4, z: 1.4, snapped: true },
+    { x: 1.5, z: 1.5, snapped: false },
+  ])('uses the inclusive 2 mm radial tolerance at ($x, $z)', ({ x, z, snapped }) => {
+    const makePiece = (id: string) => ({
+      ...createPlacedPiece(id, 'beam', 0, { x: 20, y: 2, z: 10 }),
+      position: { x: 0, y: 0, z: 0 },
+    });
+    const result = snapToAlignedHole(
+      'moving',
+      { x, z },
+      [makePiece('moving'), makePiece('target')],
+      new Map([
+        ['moving', [{ x: 0, z: 0 }]],
+        ['target', [{ x: 0, z: 0 }]],
+      ]),
+    );
+    expect(result).toEqual(snapped ? { x: 0, z: 0, snapped: true } : { x, z, snapped: false });
+  });
+
   it('does not use vertical-hole snapping when either piece is tilted', () => {
     const a = {
       ...createPlacedPiece('a', 'beam', 0, { x: 20, y: 2, z: 10 }),
@@ -121,9 +143,36 @@ describe('hole detection and snapping', () => {
     const scene = createDesignScene(root);
     scene.sync([moving, target], [libraryPiece], []);
     expect(scene.snapPosition('moving', 8.5, 0)).toEqual({ x: 10, z: 0, snapped: true });
-    scene.sync([moving, makePiece('target', 0)], [libraryPiece], []);
+    const upper = {
+      ...makePiece('target', 0),
+      position: { x: 0, y: loaded.sizeMm.y, z: 0 },
+    };
+    scene.sync([moving, upper], [libraryPiece], []);
     const markers = root.getObjectByName('aligned-hole-markers');
-    expect(markers?.children.length).toBeGreaterThan(0);
+    expect(markers?.children).toHaveLength(6);
+    for (const marker of markers?.children ?? []) {
+      expect(marker.position.y).toBeCloseTo(loaded.sizeMm.y * 2 + 0.8);
+    }
+    // Marker heights and counts must not depend on placement order or selection.
+    scene.sync([upper, moving], [libraryPiece], [upper.id]);
+    expect(markers?.children).toHaveLength(6);
+    for (const marker of markers?.children ?? []) {
+      expect(marker.position.y).toBeCloseTo(loaded.sizeMm.y * 2 + 0.8);
+    }
+    scene.sync([moving, makePiece('target', 0)], [libraryPiece], []);
+    expect(markers?.children).toHaveLength(6);
+    scene.sync(
+      [moving, { ...upper, position: { x: 0, y: upper.position.y, z: 2 } }],
+      [libraryPiece],
+      [],
+    );
+    expect(markers?.children).toHaveLength(12);
+    scene.sync(
+      [moving, { ...upper, position: { x: 0, y: upper.position.y, z: 2.001 } }],
+      [libraryPiece],
+      [],
+    );
+    expect(markers?.children).toHaveLength(0);
 
     scene.dispose();
     loaded.geometry.dispose();
