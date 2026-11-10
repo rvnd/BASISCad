@@ -1,5 +1,6 @@
 import { WORKPLANE_HALF_MM } from './constants';
 import type { PieceSizeMm } from './library';
+import type { FastenerConnection } from './connections';
 import { addRotation, flipRotation, resetRotation, setRotation } from './rotation';
 
 /**
@@ -40,6 +41,9 @@ export interface PlacedPiece {
   libraryId: string;
   position: PositionMm;
   rotation: RotationDeg;
+  fastener?: FastenerConnection;
+  groupId?: string;
+  locked?: boolean;
 }
 
 /**
@@ -258,5 +262,8 @@ export function removePlaced(
     return placed;
   }
   const selected = new Set(selectedIds);
-  return placed.filter((piece) => !selected.has(piece.id));
+  return placed.filter(
+    (piece) =>
+      !selected.has(piece.id) && !piece.fastener?.holes.some((hole) => selected.has(hole.pieceId)),
+  );
 }

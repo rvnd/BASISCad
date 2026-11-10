@@ -1,4 +1,5 @@
 import type { PlacedPiece } from './design';
+import { isFastenerConnection } from './connections';
 
 export const SAVED_DESIGNS_STORAGE_KEY = 'basiscad.saved-designs.v1';
 export const RECOVERY_STORAGE_KEY = 'basiscad.recovery.v1';
@@ -37,7 +38,10 @@ function isPlacedPiece(value: unknown): value is PlacedPiece {
     piece.rotation !== null &&
     isFiniteNumber(piece.rotation.x) &&
     isFiniteNumber(piece.rotation.y) &&
-    isFiniteNumber(piece.rotation.z)
+    isFiniteNumber(piece.rotation.z) &&
+    (piece.fastener === undefined || isFastenerConnection(piece.fastener)) &&
+    (piece.locked === undefined || typeof piece.locked === 'boolean') &&
+    (piece.groupId === undefined || (typeof piece.groupId === 'string' && piece.groupId.length > 0))
   );
 }
 
@@ -52,8 +56,38 @@ function isDesignDocument(value: unknown): value is DesignDocument {
     document.name.trim().length > 0 &&
     Array.isArray(document.placed) &&
     document.placed.every(isPlacedPiece) &&
+    (!document.placed.some((piece) => piece.fastener) ||
+      new Set(document.placed.map((piece) => piece.id)).size === document.placed.length) &&
+    document.placed.every(
+      (piece) =>
+        !piece.fastener ||
+        piece.fastener.holes.every((hole) =>
+          document.placed!.some((other) => other.id === hole.pieceId && !other.fastener),
+        ),
+    ) &&
     isFiniteNumber(document.updatedAt)
   );
+}
+
+/** Older versions reused numeric IDs after reopening. Preserve every unattached piece while repairing them. */
+function repairLegacyIds(document: DesignDocument): DesignDocument {
+  const used = new Set(document.placed.map((piece) => piece.id));
+  const seen = new Set<string>();
+  let repaired = false;
+  const placed = document.placed.map((piece) => {
+    if (!seen.has(piece.id)) {
+      seen.add(piece.id);
+      return piece;
+    }
+    let suffix = 1;
+    while (used.has(`${piece.id}-copy-${suffix}`)) suffix += 1;
+    const id = `${piece.id}-copy-${suffix}`;
+    used.add(id);
+    seen.add(id);
+    repaired = true;
+    return { ...piece, id };
+  });
+  return repaired ? { ...document, placed } : document;
 }
 
 export function readSavedDesigns(storage: StorageLike): readonly DesignDocument[] {
@@ -66,7 +100,7 @@ export function readSavedDesigns(storage: StorageLike): readonly DesignDocument[
     if (!Array.isArray(value)) {
       return [];
     }
-    return value.filter(isDesignDocument);
+    return value.filter(isDesignDocument).map(repairLegacyIds);
   } catch {
     return [];
   }
@@ -95,7 +129,7 @@ export function readRecoveryDraft(storage: StorageLike): DesignDocument | null {
       return null;
     }
     const value: unknown = JSON.parse(raw);
-    return isDesignDocument(value) ? value : null;
+    return isDesignDocument(value) ? repairLegacyIds(value) : null;
   } catch {
     return null;
   }

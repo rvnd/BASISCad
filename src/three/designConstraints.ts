@@ -5,11 +5,13 @@ import { WORKPLANE_HALF_MM } from '../app/constants';
 import { getGeometry } from './libraryGeometry';
 import { pieceMatrix } from './pieceTransforms';
 import { COLLISION_EPS_MM, meshesOverlap } from './meshCollision';
+import { fastenerGeometry } from './fastenerGeometry';
 
 export type GeometryLookup = (piece: PlacedPiece) => THREE.BufferGeometry | undefined;
 
 export function geometryLookup(library: ReadonlyMap<string, LibraryPiece>): GeometryLookup {
   return (piece) => {
+    if (piece.fastener) return fastenerGeometry(piece);
     const id = library.get(piece.libraryId)?.geometryId;
     return id ? getGeometry(id) : undefined;
   };
