@@ -1,3 +1,4 @@
+import { jointDesign } from './connectionSetup';
 import type { Page } from '@playwright/test';
 import { appUrl, expect, test } from './fixtures';
 async function draft(page: Page) {
@@ -108,4 +109,43 @@ test('labels follow piece edits and reset restores positions and individual visi
   expect((await draft(page)).placed[0].label).toBeUndefined();
   await panel.getByRole('radio', { name: 'Off', exact: true }).check();
   await expect(page.locator('.blueprint-label')).toHaveCount(0);
+});
+
+test('keeps all dimension text readable on a screwed cross', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(
+    (placed) =>
+      localStorage.setItem(
+        'basiscad.recovery.v1',
+        JSON.stringify({
+          id: 'dimensions',
+          name: 'Dimension Cross',
+          updatedAt: Date.now(),
+          placed,
+          labelMode: 'measurements',
+        }),
+      ),
+    jointDesign(false, true),
+  );
+  await page.reload();
+  await page.getByRole('button', { name: 'Restore Design', exact: true }).click();
+  await page.getByRole('button', { name: /Camera view:/ }).click();
+  await page.getByRole('menuitem', { name: 'Top', exact: true }).click();
+  for (let i = 0; i < 6; i++)
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await expect(page.locator('.dimension-label')).toHaveCount(9);
+  const rectangles = await page.locator('.dimension-label').evaluateAll((labels) =>
+    labels.map((label) => {
+      const r = label.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    }),
+  );
+  for (let i = 0; i < rectangles.length; i++)
+    for (let j = i + 1; j < rectangles.length; j++) {
+      const a = rectangles[i]!,
+        b = rectangles[j]!;
+      expect(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top).toBe(
+        true,
+      );
+    }
 });

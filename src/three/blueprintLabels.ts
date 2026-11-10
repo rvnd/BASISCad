@@ -92,13 +92,24 @@ export function projectBlueprintLabels(
         end.y += offset.y;
         // An axis viewed end-on still has a readable dimension callout.
         if (Math.hypot(end.x - start.x, end.y - start.y) < 10) end.y = start.y - 28;
+        const textAt = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 8 };
+        const existing = [...result.flatMap((label) => label.dimensions), ...dimensions];
+        let attempts = 0;
+        while (
+          existing.some(
+            (label) =>
+              Math.abs(label.textAt.x - textAt.x) < 75 && Math.abs(label.textAt.y - textAt.y) < 22,
+          ) &&
+          attempts++ < 40
+        )
+          textAt.y -= 24;
         dimensions.push({
           text: `${axis.toUpperCase()} ${(box.max[axis] - box.min[axis]).toFixed(1)} mm`,
           start,
           end,
           fromStart: project(a),
           fromEnd: project(b),
-          textAt: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 8 },
+          textAt,
         });
       }
     }

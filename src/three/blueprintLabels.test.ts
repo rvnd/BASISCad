@@ -55,6 +55,32 @@ describe('blueprint projections', () => {
     ).toEqual([]);
     expect(projectBlueprintLabels(stock, library, c, 800, 800, 'off')).toEqual([]);
   });
+  it('separates dimension text for overlapping layers without changing their measurement endpoints', () => {
+    const labels = projectBlueprintLabels(
+      [piece, { ...piece, id: 'b', position: { x: 0, y: 3, z: 0 } }],
+      library,
+      camera(),
+      800,
+      800,
+      'measurements',
+    );
+    const dimensions = labels.flatMap((label) => label.dimensions);
+    for (let i = 0; i < dimensions.length; i++)
+      for (let j = i + 1; j < dimensions.length; j++) {
+        expect(
+          Math.abs(dimensions[i]!.textAt.x - dimensions[j]!.textAt.x) >= 75 ||
+            Math.abs(dimensions[i]!.textAt.y - dimensions[j]!.textAt.y) >= 22,
+        ).toBe(true);
+      }
+    expect(dimensions.map((d) => d.text)).toEqual([
+      'X 50.0 mm',
+      'Y 3.0 mm',
+      'Z 12.0 mm',
+      'X 50.0 mm',
+      'Y 3.0 mm',
+      'Z 12.0 mm',
+    ]);
+  });
   it('keeps a saved screen offset relative to a moving piece and follows the camera', () => {
     const c = camera(),
       saved = { ...piece, label: { offset: { x: 90, y: -60 }, hidden: false } };

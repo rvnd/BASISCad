@@ -86,6 +86,13 @@ export default function BlueprintLabels(props: BlueprintLabelsProps) {
                   x2={dimension.end.x}
                   y2={dimension.end.y}
                 />
+                <line
+                  className="dimension-text-leader"
+                  x1={(dimension.start.x + dimension.end.x) / 2}
+                  y1={(dimension.start.y + dimension.end.y) / 2}
+                  x2={dimension.textAt.x}
+                  y2={dimension.textAt.y}
+                />
               </g>
             ))
           ) : (
