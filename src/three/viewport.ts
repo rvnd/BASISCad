@@ -1,3 +1,5 @@
+import type { LabelMode } from '../app/labels';
+import type { BlueprintLabel } from './blueprintLabels';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { getCameraView } from './cameraViews';
@@ -26,6 +28,7 @@ import type { RotationAxis } from './rotationHandles';
  */
 
 export interface ViewportHandle {
+  setLabelsMode(mode: LabelMode): void;
   setHingeEnabled(enabled: boolean): void;
   setHoleMarkersEnabled(enabled: boolean, spacingPx?: number): void;
   cameraPosition(): PositionMm;
@@ -58,6 +61,7 @@ export interface ViewportHandle {
  * instead of jumping so its centre is under the cursor.
  */
 export interface ViewportDesignCallbacks {
+  onBlueprintLabels?(labels: readonly BlueprintLabel[]): void;
   canMovePiece?(id: string): boolean;
   hingeInfo?(id: string): { pivot: PositionMm; axis: PositionMm; angle: number } | null;
   onHingeAngle?(id: string, angle: number): void;
@@ -173,6 +177,7 @@ export function createViewport(
   let holeSnappingEnabled = true;
   let hingeEnabled = false;
   let holePicking = false;
+  let labelsMode: LabelMode = 'off';
   let markerSpacingPx = 15;
   let holesDirty = true;
   let lastHolesUpdate = 0;
@@ -523,13 +528,18 @@ export function createViewport(
     controls.update();
     renderer.render(scene, camera);
     const now = performance.now();
-    if (holePicking && holesDirty && now - lastHolesUpdate > 100) {
+    if ((holePicking || labelsMode !== 'off') && holesDirty && now - lastHolesUpdate > 100) {
       holesDirty = false;
       lastHolesUpdate = now;
       const rect = renderer.domElement.getBoundingClientRect();
-      designCallbacks?.onHoleTargets?.(
-        designScene.holeTargets(camera, rect.width, rect.height, markerSpacingPx),
-      );
+      if (holePicking)
+        designCallbacks?.onHoleTargets?.(
+          designScene.holeTargets(camera, rect.width, rect.height, markerSpacingPx),
+        );
+      if (labelsMode !== 'off')
+        designCallbacks?.onBlueprintLabels?.(
+          designScene.blueprintLabels(camera, rect.width, rect.height, labelsMode),
+        );
     }
   };
   tick();
@@ -563,6 +573,11 @@ export function createViewport(
   };
 
   return {
+    setLabelsMode(mode): void {
+      labelsMode = mode;
+      holesDirty = true;
+      if (mode === 'off') designCallbacks?.onBlueprintLabels?.([]);
+    },
     setHingeEnabled(enabled): void {
       hingeEnabled = enabled;
       designScene.setHandlesEnabled(!holePicking && !hingeEnabled && selectionMode === 'rotate');

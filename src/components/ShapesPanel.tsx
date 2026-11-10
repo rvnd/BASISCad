@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import {
   PIECE_CATEGORIES,
@@ -22,6 +23,7 @@ import ImportPieces from './ImportPieces';
  */
 
 interface ShapesPanelProps {
+  labelsPanel?: ReactNode;
   pieces: readonly LibraryPiece[];
   onImport: (file: File, category: PieceCategory, colourHex: string) => void;
   importing: boolean;
@@ -75,6 +77,7 @@ function PieceEntry({ piece, onPlace }: { piece: LibraryPiece; onPlace: (id: str
 }
 
 export default function ShapesPanel({
+  labelsPanel,
   pieces,
   onImport,
   importing,
@@ -100,6 +103,7 @@ export default function ShapesPanel({
 
   return (
     <aside className="side-column right-column" aria-label="Shapes">
+      {labelsPanel}
       <section className="panel">
         <div className="panel-header-row">
           <h2 className="panel-title">Shapes</h2>

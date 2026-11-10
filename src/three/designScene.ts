@@ -1,3 +1,6 @@
+import type { LabelMode } from '../app/labels';
+import { projectBlueprintLabels } from './blueprintLabels';
+import type { BlueprintLabel } from './blueprintLabels';
 import * as THREE from 'three';
 import type { PlacedPiece, RotationDeg } from '../app/design';
 import type { LibraryPiece } from '../app/library';
@@ -53,6 +56,12 @@ import type { RotationAxis } from './rotationHandles';
  */
 
 export interface DesignScene {
+  blueprintLabels(
+    camera: THREE.Camera,
+    width: number,
+    height: number,
+    mode: LabelMode,
+  ): readonly BlueprintLabel[];
   holeTargets(
     camera: THREE.Camera,
     width: number,
@@ -309,6 +318,16 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
   };
 
   return {
+    blueprintLabels(camera, width, height, mode) {
+      return projectBlueprintLabels(
+        lastPlaced,
+        new Map(lastLibrary.map((piece) => [piece.id, piece])),
+        camera,
+        width,
+        height,
+        mode,
+      );
+    },
     holeTargets(camera, width, height, spacingPx = 15) {
       return projectHoleTargets(
         worldHoles,

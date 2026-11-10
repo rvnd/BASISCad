@@ -1,3 +1,8 @@
+import LabelsPanel from './components/LabelsPanel';
+import BlueprintLabels from './components/BlueprintLabels';
+import { updateLabel, resetLabels } from './app/labels';
+import type { LabelMode } from './app/labels';
+import type { BlueprintLabel } from './three/blueprintLabels';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import AngleBadge from './components/AngleBadge.tsx';
 import Header from './components/Header.tsx';
@@ -56,6 +61,7 @@ import type { ViewportDesignCallbacks, ViewportHandle } from './three/viewport';
 import type { RotationAxis } from './three/rotationHandles';
 
 interface ActiveDesign {
+  labelMode?: LabelMode;
   id: string;
   name: string;
 }
@@ -146,6 +152,8 @@ export default function App() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('move');
+  const [labelsMove, setLabelsMove] = useState(false);
+  const [blueprintLabels, setBlueprintLabels] = useState<readonly BlueprintLabel[]>([]);
   const [hingeMode, setHingeMode] = useState(false);
   const [snapHoles, setSnapHoles] = useState(true);
   const [alignedHoleCount, setAlignedHoleCount] = useState(0);
@@ -162,6 +170,9 @@ export default function App() {
   } | null>(null);
   const [pendingScrew, setPendingScrew] = useState<HoleRef | null>(null);
   const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
+  useEffect(() => {
+    viewportRef.current?.setLabelsMode(activeDesign.labelMode ?? 'off');
+  }, [activeDesign.labelMode, viewportReady]);
   const cancelConnection = useCallback(() => {
     idlePlacedRef.current = placedRef.current;
     setConnecting(false);
@@ -460,7 +471,7 @@ export default function App() {
 
   const openSavedDesign = useCallback((design: DesignDocument) => {
     idlePlacedRef.current = design.placed;
-    setActiveDesign({ id: design.id, name: design.name });
+    setActiveDesign({ id: design.id, name: design.name, labelMode: design.labelMode });
     dispatchHistory({ type: 'replace', placed: design.placed });
     setSelectedIds([]);
     setSelectionMode('move');
@@ -504,7 +515,11 @@ export default function App() {
       return;
     }
     idlePlacedRef.current = recoveryDraft.placed;
-    setActiveDesign({ id: recoveryDraft.id, name: recoveryDraft.name });
+    setActiveDesign({
+      id: recoveryDraft.id,
+      name: recoveryDraft.name,
+      labelMode: recoveryDraft.labelMode,
+    });
     dispatchHistory({ type: 'replace', placed: recoveryDraft.placed });
     setSelectedIds([]);
     setSelectionMode('move');
@@ -523,6 +538,7 @@ export default function App() {
 
   const designCallbacks: ViewportDesignCallbacks = useMemo(
     () => ({
+      onBlueprintLabels: setBlueprintLabels,
       onHoleTargets: setHoleTargets,
       onAlignmentChange: setAlignedHoleCount,
       onBeginEdit(): void {
@@ -994,6 +1010,18 @@ export default function App() {
         />
         <div className="viewport-wrap">
           <Viewport onReady={onViewportReady} designCallbacks={designCallbacks} />
+          <BlueprintLabels
+            labels={blueprintLabels}
+            move={labelsMove && !connecting && !fastening}
+            onBegin={() => dispatchHistory({ type: 'begin-edit' })}
+            onEnd={() => dispatchHistory({ type: 'end-edit' })}
+            onMove={(id, offset) =>
+              dispatchHistory({
+                type: 'edit',
+                apply: (previous) => updateLabel(previous, id, { offset }),
+              })
+            }
+          />
           {connecting && <HolePicker targets={holeTargets} first={firstHole} onPick={pickHole} />}
           {fastening && (
             <HolePicker
@@ -1066,6 +1094,28 @@ export default function App() {
             })()}
         </div>
         <ShapesPanel
+          labelsPanel={
+            <LabelsPanel
+              mode={activeDesign.labelMode ?? 'off'}
+              move={labelsMove}
+              pieces={placed.map((piece) => ({
+                id: piece.id,
+                name: piece.fastener
+                  ? fastenerName(piece.fastener)
+                  : (libraryPieces.find((entry) => entry.id === piece.libraryId)?.name ?? 'Piece'),
+                hidden: piece.label?.hidden ?? false,
+              }))}
+              onMode={(labelMode) => setActiveDesign((previous) => ({ ...previous, labelMode }))}
+              onMove={setLabelsMove}
+              onVisible={(id, visible) =>
+                dispatchHistory({
+                  type: 'edit',
+                  apply: (previous) => updateLabel(previous, id, { hidden: !visible }),
+                })
+              }
+              onReset={() => dispatchHistory({ type: 'edit', apply: resetLabels })}
+            />
+          }
           pieces={libraryPieces}
           onImport={onImport}
           importing={importing}
