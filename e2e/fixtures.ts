@@ -48,9 +48,10 @@ export const test = process.env.PLAYWRIGHT_RELAY_URL
         if (!context) throw new Error('The browser relay did not provide a context.');
         await runTest(context);
       },
-      page: async ({ context, baseURL }, runTest) => {
+      page: async ({ context, baseURL, viewport }, runTest) => {
         if (!baseURL) throw new Error('The local browser test URL is missing.');
         const page = await context.newPage();
+        if (viewport) await page.setViewportSize(viewport);
         let renderTimer: ReturnType<typeof setInterval> | undefined;
         try {
           const cdp = await context.newCDPSession(page);

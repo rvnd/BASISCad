@@ -9,6 +9,8 @@ export default defineConfig({
   fullyParallel: !usingRelay,
   forbidOnly: Boolean(process.env.CI),
   workers: usingRelay ? 1 : process.env.CI ? 2 : undefined,
+  // The extension transports each input event; long local drags need a larger budget.
+  timeout: usingRelay ? 90_000 : 30_000,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL,
