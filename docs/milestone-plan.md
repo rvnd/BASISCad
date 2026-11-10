@@ -2,7 +2,7 @@
 
 Source: the repository’s GitHub milestone issues. Complete each milestone’s acceptance checks with unit tests and browser interaction before advancing.
 
-Milestones 0–10 are complete. Local validation: `npm run test:e2e:local`.
+Milestones 0–11 are complete. Local validation: `npm run test:e2e:local`.
 
 ## Milestone 6 — Hole snapping with green rings
 
@@ -113,14 +113,16 @@ Goal: a design can be read like a blueprint, with names or measurements on the p
 
 Steps:
 
-- [ ] Add a Labels section, starting collapsed so it leaves room for the shapes panel. Collapsing it hides the controls, not the labels already on the design.
-- [ ] Offer three modes: Off, Piece Names, and Measurements.
-- [ ] Piece Names shows each piece's library name as plain text joined to the piece by a thin leader line.
-- [ ] Measurements shows each piece's X, Y, and Z size in millimetres as dimension lines with extension lines and arrowheads.
-- [ ] Add Enable Move labels: labels can be dragged to a clearer spot without moving the piece, each label can be shown or hidden individually, positions are saved with the design, and there is a way to reset them. Put a small "i" icon beside it that explains exactly that.
-- [ ] Labels follow their pieces when pieces move, and labels appear in printouts (Milestone 12).
+- [x] Add a Labels section, starting collapsed so it leaves room for the shapes panel. Collapsing it hides the controls, not the labels already on the design.
+- [x] Offer three modes: Off, Piece Names, and Measurements.
+- [x] Piece Names shows each piece's library name as plain text joined to the piece by a thin leader line.
+- [x] Measurements shows each piece's X, Y, and Z size in millimetres as dimension lines with extension lines and arrowheads.
+- [x] Add Enable Move labels: labels can be dragged to a clearer spot without moving the piece, each label can be shown or hidden individually, positions are saved with the design, and there is a way to reset them. Put a small "i" icon beside it that explains exactly that.
+- [x] Labels follow their pieces when pieces move, and labels appear in printouts (Milestone 12).
 
 Done when: switching to Piece Names labels every piece with a leader line, switching to Measurements shows dimension lines in millimetres, and a dragged label stays where it was left after saving and reopening.
+
+Verification: 202 unit tests and all 32 Chromium browser checks passed in CI run 42794019057. Local browser tests cover dragged name labels without stock movement, individual visibility, all-axis dimensions, reset, follow-on piece edits, collapsed controls, and exact save/reopen. A geometry regression and real browser rectangle check prevent overlapping dimension text on a screwed cross. Direct website use confirmed readable names and dimension leaders, three labels for a hidden piece disappearing together, saved offsets and mode, and labels remaining visible while controls are collapsed.
 
 ## Milestone 12 — Print: design page and budget page
 
