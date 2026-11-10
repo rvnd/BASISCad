@@ -2,7 +2,7 @@
 
 Source: the repository’s GitHub milestone issues. Complete each milestone’s acceptance checks with unit tests and browser interaction before advancing.
 
-Milestones 0–11 are complete. Local validation: `npm run test:e2e:local`.
+Milestones 0–12 are complete. Local validation: `npm run test:e2e:local`.
 
 ## Milestone 6 — Hole snapping with green rings
 
@@ -132,14 +132,16 @@ Goal: printing produces the two classroom pages from the prototype, and nothing 
 
 Steps:
 
-- [ ] Print Design first asks which view to print: Top, Front, Side, or 3D.
-- [ ] Page 1 is the design only, with the design name, date, view, and overall size. The chevrons and BASIScad name sit at the top left.
-- [ ] Page 2 is the budget, with the same chevrons and name at the top left, in three parts: Materials Needed, Materials Cost, and a blank Evaluation section for the student or teacher to write in.
-- [ ] Fill Materials Needed and Materials Cost automatically from the design: quantity of each piece used, its hole count, and its cost at $1 per hole, with totals for pieces and cost.
-- [ ] Pieces print with their black outlines, and labels print in the mode chosen in Milestone 11.
-- [ ] Check the real print preview for both pages before calling this done — the prototype's two-page output was never visually verified.
+- [x] Print Design first asks which view to print: Top, Front, Side, or 3D.
+- [x] Page 1 is the design only, with the design name, date, view, and overall size. The chevrons and BASIScad name sit at the top left.
+- [x] Page 2 is the budget, with the same chevrons and name at the top left, in three parts: Materials Needed, Materials Cost, and a blank Evaluation section for the student or teacher to write in.
+- [x] Fill Materials Needed and Materials Cost automatically from the design: quantity of each piece used, its hole count, and its cost at $1 per hole, with totals for pieces and cost.
+- [x] Pieces print with their black outlines, and labels print in the mode chosen in Milestone 11.
+- [x] Check the real print preview for both pages before calling this done — the prototype's two-page output was never visually verified.
 
 Done when: a design using two 1x4 girders and one 1x6 girder prints a design page with name, date, view, and size, and a budget page totalling 3 pieces and $14.
+
+Verification: 205 unit tests and all 33 Chromium browser checks passed in CI run 42796204352. The browser flow checks view selection, printed labels, both branded pages, blank evaluation space, exact stock preservation, and the required three-piece $14 budget. Native CI also requires exactly two pages in its generated PDF and retains that proof as an artifact. Direct website use checked all four views; local Chrome generated a tagged two-page A4 PDF, and both pages were rendered with Poppler and visually inspected. Name, date, view, size, black outlines, labels, materials, and totals are present with no clipped content. Unknown imported hole counts and hardware prices are kept explicit rather than guessed.
 
 ## Milestone 13 — First-use guide and header tidy-up
 

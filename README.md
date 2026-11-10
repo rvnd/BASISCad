@@ -150,7 +150,7 @@ without rewrites:
 
 ## Milestones
 
-Milestones 0–11 are implemented. Milestone 6 uses the library's 3D bore
+Milestones 0–12 are implemented. Milestone 6 uses the library's 3D bore
 metadata for snapping at any orientation, including upright girders and
 brace arms. It measures the actual wall around each hole, updates green
 rings on every aligned hole, and supports the 2 mm tolerance, Snap holes
@@ -180,6 +180,11 @@ Milestone 11 adds a collapsed Labels section with Off, Piece Names, and
 Measurements modes. Labels have leaders or dimension lines, can be dragged
 and hidden individually, follow piece edits and camera changes, and retain
 their positions and mode after saving. Reset labels restores their defaults.
+
+Milestone 12 adds Print Design: choose Top, Front, Side, or 3D, then preview
+and print two A4 pages. The design page includes outlines and saved labels;
+the budget page includes materials, $1-per-hole pricing, totals, and blank
+evaluation space. CI verifies PDF pagination and keeps the print proof.
 
 The build follows the milestone plan in
 [`docs/milestone-plan.md`](docs/milestone-plan.md)
