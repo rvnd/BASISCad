@@ -2,7 +2,7 @@
 
 Source: the repository’s GitHub milestone issues. Complete each milestone’s acceptance checks with unit tests and browser interaction before advancing.
 
-Milestones 0–12 are complete. Local validation: `npm run test:e2e:local`.
+Milestones 0–13 are complete. Local validation: `npm run test:e2e:local`.
 
 ## Milestone 6 — Hole snapping with green rings
 
@@ -151,13 +151,15 @@ Goal: a new student can learn the basics in the app, and the screen carries no l
 
 Steps:
 
-- [ ] Add a short first-use guide that walks through adding, moving, rotating, connecting, screwing, and saving a piece, shown on first use and available again from Help.
-- [ ] Make Help actually open that guide, and make Settings open a real panel or remove the button. Both were dead buttons in the prototype — whichever you keep must work.
-- [ ] Remove the "Recovered: Untitled Design" text and any "Drag a piece to move…" hint box from the header.
-- [ ] Add a comment tool only if the class needs it, and if you add it, make sure Cancel and Escape fully leave comment mode. In the prototype the mode stuck in the header after cancelling.
-- [ ] Walk the whole header at the end: every button either works or is gone.
+- [x] Add a short first-use guide that walks through adding, moving, rotating, connecting, screwing, and saving a piece, shown on first use and available again from Help.
+- [x] Make Help actually open that guide, and make Settings open a real panel or remove the button. Both were dead buttons in the prototype — whichever you keep must work.
+- [x] Remove the "Recovered: Untitled Design" text and any "Drag a piece to move…" hint box from the header.
+- [x] Add a comment tool only if the class needs it, and if you add it, make sure Cancel and Escape fully leave comment mode. In the prototype the mode stuck in the header after cancelling.
+- [x] Walk the whole header at the end: every button either works or is gone.
 
 Done when: a first-time user can follow the guide to build and save a two-piece design unaided, and clicking every header button in turn does something visible.
+
+Verification: 207 unit tests and all 34 Chromium browser checks passed in CI run 42798352168. The local Chrome guide flow and direct website use built, moved, rotated, connected, fastened, saved, and reopened two girders. Dismissal persists, Help starts the guide again, Back works, and Escape closes it. The guide was visually inspected beside the workplane. Header rename, Undo/Redo, Lock/Unlock, connection options, Save, Open, New, Manage, Print, and Help were exercised; grouping and ungrouping remain covered by the assembly tests. Settings and comment tools are absent, and the obsolete milestone status badge is removed.
 
 ## Milestone 14 — Tablet two-hand controls
 

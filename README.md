@@ -150,7 +150,7 @@ without rewrites:
 
 ## Milestones
 
-Milestones 0–12 are implemented. Milestone 6 uses the library's 3D bore
+Milestones 0–13 are implemented. Milestone 6 uses the library's 3D bore
 metadata for snapping at any orientation, including upright girders and
 brace arms. It measures the actual wall around each hole, updates green
 rings on every aligned hole, and supports the 2 mm tolerance, Snap holes
