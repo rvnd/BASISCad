@@ -6,6 +6,7 @@ import { getGeometry } from './libraryGeometry';
 import { pieceMatrix } from './pieceTransforms';
 import { COLLISION_EPS_MM, meshesOverlap } from './meshCollision';
 import { fastenerGeometry } from './fastenerGeometry';
+import { rotatedGeometryBounds } from './geometryBounds';
 
 export type GeometryLookup = (piece: PlacedPiece) => THREE.BufferGeometry | undefined;
 
@@ -18,13 +19,11 @@ export function geometryLookup(library: ReadonlyMap<string, LibraryPiece>): Geom
 }
 
 export function pieceBounds(piece: PlacedPiece, geometry: THREE.BufferGeometry): THREE.Box3 {
-  const matrix = pieceMatrix(piece, geometry);
-  const box = new THREE.Box3();
-  const point = new THREE.Vector3();
-  const positions = geometry.getAttribute('position');
-  for (let i = 0; i < positions.count; i += 1)
-    box.expandByPoint(point.fromBufferAttribute(positions, i).applyMatrix4(matrix));
-  return box;
+  const box = rotatedGeometryBounds(geometry, piece.rotation);
+  const lift = piece.rotation.x === 0 && piece.rotation.z === 0 ? 0 : Math.max(0, -box.min.y);
+  return box.translate(
+    new THREE.Vector3(piece.position.x, piece.position.y + lift, piece.position.z),
+  );
 }
 
 export function clampPiece(piece: PlacedPiece, geometry: THREE.BufferGeometry): PlacedPiece {
@@ -54,14 +53,27 @@ export function canPlace(
 ): boolean {
   const mesh = geometry(piece);
   if (!mesh) return false;
-  if (pieceBounds(piece, mesh).min.y < -COLLISION_EPS_MM) return false;
+  const bounds = pieceBounds(piece, mesh);
+  if (bounds.min.y < -COLLISION_EPS_MM) return false;
   const matrix = pieceMatrix(piece, mesh);
   return others.every((other) => {
     if (other.id === piece.id) return true;
     // A requested hardware-clearance override never permits stock/stock overlap or a floor crossing.
     if (piece.fastener?.clearanceOverride || other.fastener?.clearanceOverride) return true;
     const otherMesh = geometry(other);
-    return !otherMesh || !meshesOverlap(mesh, matrix, otherMesh, pieceMatrix(other, otherMesh));
+    if (!otherMesh) return true;
+    const otherBounds = pieceBounds(other, otherMesh);
+    // Disjoint or merely touching exact bounds need no triangle query.
+    if (
+      (['x', 'y', 'z'] as const).some(
+        (axis) =>
+          Math.min(bounds.max[axis], otherBounds.max[axis]) -
+            Math.max(bounds.min[axis], otherBounds.min[axis]) <=
+          COLLISION_EPS_MM,
+      )
+    )
+      return true;
+    return !meshesOverlap(mesh, matrix, otherMesh, pieceMatrix(other, otherMesh));
   });
 }
 

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { PlacedPiece, RotationDeg } from '../app/design';
+import { rotatedGeometryBounds } from './geometryBounds';
 
 export function quaternionRotation(quaternion: THREE.Quaternion): RotationDeg {
   const angles = new THREE.Euler().setFromQuaternion(quaternion, 'XYZ');
@@ -23,15 +24,7 @@ export function pieceQuaternion(rotation: RotationDeg): THREE.Quaternion {
 /** Match the rendered piece's base height after rotating its actual vertices. */
 export function rotationLift(geometry: THREE.BufferGeometry, rotation: RotationDeg): number {
   if (rotation.x === 0 && rotation.z === 0) return 0;
-  const positions = geometry.getAttribute('position');
-  const quaternion = pieceQuaternion(rotation);
-  const point = new THREE.Vector3();
-  let minY = 0;
-  for (let i = 0; i < positions.count; i += 1) {
-    point.fromBufferAttribute(positions, i).applyQuaternion(quaternion);
-    minY = Math.min(minY, point.y);
-  }
-  return -minY;
+  return Math.max(0, -rotatedGeometryBounds(geometry, rotation).min.y);
 }
 
 export function pieceMatrix(piece: PlacedPiece, geometry: THREE.BufferGeometry): THREE.Matrix4 {
