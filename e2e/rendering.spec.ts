@@ -14,6 +14,25 @@ async function frames(page: Page, count = 3) {
     count,
   );
 }
+async function waitForIdle(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        let previous = -1,
+          quiet = 0,
+          remaining = 180;
+        const tick = () => {
+          const count = (window as unknown as { cadDraws: number }).cadDraws;
+          quiet = count === previous ? quiet + 1 : 0;
+          previous = count;
+          if (quiet >= 5) resolve();
+          else if (--remaining === 0) reject(new Error('The viewport did not stop drawing'));
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+}
 async function draws(page: Page) {
   return page.evaluate(() => (window as unknown as { cadDraws: number }).cadDraws);
 }
@@ -46,7 +65,7 @@ test('two-piece designs stop drawing while idle and redraw for camera, rotation,
   await place.click();
   await place.click();
   await expect(page.locator('.library-status-ready')).toHaveCount(17);
-  await frames(page);
+  await waitForIdle(page);
   const idle = await draws(page);
   expect(idle).toBeGreaterThan(0);
   await frames(page, 5);
@@ -54,6 +73,7 @@ test('two-piece designs stop drawing while idle and redraw for camera, rotation,
   const initial = await page.locator('.viewport canvas').screenshot();
   await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
   await expect.poll(() => draws(page)).toBeGreaterThan(idle);
+  await waitForIdle(page);
   const zoomed = await page.locator('.viewport canvas').screenshot();
   expect(zoomed.equals(initial)).toBe(false);
   const beforeRotation = await draws(page);
@@ -62,13 +82,13 @@ test('two-piece designs stop drawing while idle and redraw for camera, rotation,
   await expect.poll(() => draws(page)).toBeGreaterThan(beforeRotation);
   expect((await page.locator('.viewport canvas').screenshot()).equals(zoomed)).toBe(false);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  await frames(page);
+  await waitForIdle(page);
   expect((await page.locator('.viewport canvas').screenshot()).equals(zoomed)).toBe(true);
   await page.getByLabel('X in mm', { exact: true }).fill('80');
   await page.getByLabel('X in mm', { exact: true }).press('Enter');
-  await frames(page);
+  await waitForIdle(page);
   expect((await page.locator('.viewport canvas').screenshot()).equals(zoomed)).toBe(false);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  await frames(page);
+  await waitForIdle(page);
   expect((await page.locator('.viewport canvas').screenshot()).equals(zoomed)).toBe(true);
 });
