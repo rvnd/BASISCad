@@ -190,21 +190,22 @@ describe('handleAngleDeg', () => {
 });
 
 describe('snapDragDeltaDeg', () => {
-  it('snaps to 22.5° inside the protractor circle, 1° outside, 45° with Shift', () => {
-    // Inside: at or within the radius.
-    expect(snapDragDeltaDeg(30, 50, 100, false)).toBe(22.5);
-    expect(snapDragDeltaDeg(30, 100, 100, false)).toBe(22.5);
-    expect(snapDragDeltaDeg(-30, 0, 100, false)).toBe(-22.5);
-    expect(snapDragDeltaDeg(17, 10, 100, false)).toBe(22.5);
-    // Outside: free in 1° steps.
-    expect(snapDragDeltaDeg(30.4, 150, 100, false)).toBe(30);
-    expect(snapDragDeltaDeg(30.6, 150, 100, false)).toBe(31);
-    expect(snapDragDeltaDeg(-30.4, 200, 100, false)).toBe(-30);
-    // Shift: 45° steps wherever the pointer is.
-    expect(snapDragDeltaDeg(30, 50, 100, true)).toBe(45);
-    expect(snapDragDeltaDeg(30, 150, 100, true)).toBe(45);
-    expect(snapDragDeltaDeg(10, 50, 100, true)).toBe(0);
-    expect(snapDragDeltaDeg(-30, 50, 100, true)).toBe(-45);
+  it('uses fixed 22.5° detents in both directions across multiple turns', () => {
+    for (const [raw, expected] of [
+      [0, 0],
+      [10, 0],
+      [11.25, 22.5],
+      [17, 22.5],
+      [30, 22.5],
+      [30.6, 22.5],
+      [34, 45],
+      [179, 180],
+      [370, 360],
+      [394, 405],
+    ]) {
+      expect(snapDragDeltaDeg(raw!)).toBe(expected);
+      expect(snapDragDeltaDeg(-raw!)).toBe(-expected!);
+    }
   });
 });
 

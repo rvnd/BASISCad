@@ -8,6 +8,8 @@ import {
   resetRotation,
   setRotation,
   snapDeltaDeg,
+  snapManualAngle,
+  MANUAL_ROTATION_STEP_DEG,
 } from './rotation';
 
 describe('normalizeAngleDeg', () => {
@@ -37,25 +39,31 @@ describe('rotation updates', () => {
     expect(addRotation(base, 'x', 15)).toEqual({ x: 15, y: 0, z: 45 });
   });
 
-  it('adds exactly 90° to one axis only, wrapping past 180° — the panel 90° button', () => {
+  it('adds exactly 90° to one axis only, wrapping past 180°', () => {
     // From 45° it lands on 135°, from 135° it wraps to -135°.
     expect(addRotation({ x: 45, y: 0, z: 0 }, 'x', 90)).toEqual({ x: 135, y: 0, z: 0 });
     expect(addRotation({ x: 135, y: 0, z: 0 }, 'x', 90)).toEqual({ x: -135, y: 0, z: 0 });
     expect(addRotation({ x: 0, y: 0, z: 0 }, 'y', 90)).toEqual({ x: 0, y: 90, z: 0 });
   });
 
-  it('applies a typed angle from the badge exactly as the panel fields do', () => {
-    // The badge's commit path is parseAngleInput + setRotation — the
-    // same two functions the panel's typed fields use. Decimals and
-    // negatives are accepted, and -30 lands exactly on -30.
-    expect(setRotation(base, 'z', parseAngleInput('-30') ?? 0)).toEqual({ x: 0, y: 0, z: -30 });
-    expect(setRotation(base, 'x', parseAngleInput('45.5') ?? 0)).toEqual({
-      x: 45.5,
+  it('rounds parsed manual angles without rounding position input', () => {
+    expect(setRotation(base, 'z', snapManualAngle(parseAngleInput('-30')!))).toEqual({
+      x: 0,
       y: 0,
-      z: 45,
+      z: -22.5,
     });
-    expect(setRotation(base, 'y', parseAngleInput('270') ?? 0)).toEqual({ x: 0, y: -90, z: 45 });
-    expect(parseAngleInput('abc')).toBeNull();
+    expect(snapManualAngle(45.5)).toBe(45);
+    expect(snapManualAngle(270)).toBe(-90);
+    expect(snapManualAngle(191.25)).toBe(180);
+    expect(snapManualAngle(11.25)).toBe(22.5);
+    expect(snapManualAngle(-11.25)).toBe(-22.5);
+    expect(snapManualAngle(-360)).toBe(0);
+    expect(parseAngleInput('3.175')).toBe(3.175);
+  });
+
+  it('steps from an existing arbitrary orientation without changing its baseline', () => {
+    expect(addRotation({ x: 15, y: 0, z: 0 }, 'x', MANUAL_ROTATION_STEP_DEG).x).toBe(37.5);
+    expect(addRotation({ x: 180, y: 0, z: 0 }, 'x', MANUAL_ROTATION_STEP_DEG).x).toBe(-157.5);
   });
 
   it('sets an axis to an absolute angle', () => {
@@ -74,11 +82,9 @@ describe('rotation updates', () => {
     expect(resetRotation()).toEqual({ x: 0, y: 0, z: 0 });
   });
 
-  it('offers 15, 45, and 90 degree steps', () => {
-    expect(isRotationStep(15)).toBe(true);
-    expect(isRotationStep(45)).toBe(true);
-    expect(isRotationStep(90)).toBe(true);
-    expect(isRotationStep(30)).toBe(false);
+  it('offers only the fixed 22.5 degree step', () => {
+    expect(isRotationStep(22.5)).toBe(true);
+    for (const value of [15, 45, 90, 30]) expect(isRotationStep(value)).toBe(false);
   });
 });
 

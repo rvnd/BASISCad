@@ -93,9 +93,9 @@ test('groups a screwed cross, rotates and moves it rigidly, locks it, and ungrou
   const turned = await draft(page);
   rigid(grouped, turned);
   expect(turned[0]!.groupRotation?.y).toBe(90);
-  await page.getByRole('button', { name: 'Rotate Y by plus 45 degrees', exact: true }).click();
-  expect((await draft(page))[0]!.groupRotation?.y).toBe(135);
-  await page.getByRole('button', { name: 'Rotate Y by minus 45 degrees', exact: true }).click();
+  await page.getByRole('button', { name: 'Rotate Y by plus 22.5 degrees', exact: true }).click();
+  expect((await draft(page))[0]!.groupRotation?.y).toBe(112.5);
+  await page.getByRole('button', { name: 'Rotate Y by minus 22.5 degrees', exact: true }).click();
   await type(page, 'X in mm', 40);
   const moved = await draft(page);
   rigid(turned, moved);
@@ -113,7 +113,7 @@ test('groups a screwed cross, rotates and moves it rigidly, locks it, and ungrou
   await page.mouse.up();
   const dragged = await draft(page);
   rigid(moved, dragged);
-  expect(dragged[0]!.groupRotation?.y).not.toBe(90);
+  expect(dragged[0]!.groupRotation?.y).toBe(112.5);
   await page.getByRole('button', { name: 'Lock', exact: true }).click();
   const locked = await draft(page);
   await expect(page.getByLabel('Y angle in °')).toBeDisabled();
@@ -162,6 +162,8 @@ test('types and drags a single-screw hinge while its partner and hardware stay f
   const before = await draft(page),
     library = jointLibrary();
   const pivot = worldHole(designHoles(before, library), { pieceId: 'arm', holeIndex: 0 })!.center;
+  await type(page, 'Hinge angle in °', 30);
+  expect((await draft(page))[1]!.hingeAngleDeg).toBe(22.5);
   await type(page, 'Hinge angle in °', 90);
   const after = await draft(page);
   expect(after[1]!.hingeAngleDeg).toBe(90);
@@ -180,6 +182,7 @@ test('types and drags a single-screw hinge while its partner and hardware stay f
   await page.mouse.up();
   const dragged = await draft(page);
   expect(dragged[1]!.hingeAngleDeg).not.toBe(90);
+  expect(Math.abs(dragged[1]!.hingeAngleDeg! % 22.5)).toBe(0);
   expect(dragged[0]).toEqual(before[0]);
   expect(dragged[2]).toEqual(before[2]);
   expect(

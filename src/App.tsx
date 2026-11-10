@@ -1,3 +1,4 @@
+import { MANUAL_ROTATION_STEP_DEG, snapManualAngle } from './app/rotation';
 import PrintViewDialog from './components/PrintViewDialog';
 import FirstUseGuide from './components/FirstUseGuide';
 import TabletControls from './components/TabletControls';
@@ -284,8 +285,6 @@ export default function App() {
     const timer = window.setTimeout(() => setConnectionNotice(null), 6000);
     return () => window.clearTimeout(timer);
   }, [connectionNotice]);
-  // Milestone 4: the quick-rotate step size for the panel buttons.
-  const [rotateStep, setRotateStep] = useState(45);
   // Milestone 4: the rotation handle the pointer currently hovers.
   const [handleHover, setHandleHover] = useState<RotationAxis | null>(null);
   // Milestone 4: the axis (and piece) of the last handle drag, for the
@@ -807,7 +806,10 @@ export default function App() {
             ? rotateAssembly(
                 previous,
                 selectedIds,
-                { ...pose.rotation, [axis]: relative ? pose.rotation[axis] + degrees : degrees },
+                {
+                  ...pose.rotation,
+                  [axis]: relative ? pose.rotation[axis] + degrees : snapManualAngle(degrees),
+                },
                 libraryByIdRef.current,
               )
             : previous;
@@ -817,15 +819,8 @@ export default function App() {
     [selectedIds],
   );
   const rotateStepSelected = useCallback(
-    (axis: RotationAxis, direction: 1 | -1) => setAngleSelected(axis, direction * rotateStep, true),
-    [setAngleSelected, rotateStep],
-  );
-  const flipSelected = useCallback(
-    (axis: RotationAxis) => setAngleSelected(axis, 180, true),
-    [setAngleSelected],
-  );
-  const rotate90Selected = useCallback(
-    (axis: RotationAxis) => setAngleSelected(axis, 90, true),
+    (axis: RotationAxis, direction: 1 | -1) =>
+      setAngleSelected(axis, direction * MANUAL_ROTATION_STEP_DEG, true),
     [setAngleSelected],
   );
   const resetOrientationSelected = useCallback(() => {
@@ -844,7 +839,7 @@ export default function App() {
           ? rotateAssembly(
               previous,
               [id],
-              { ...pose.rotation, [axis]: degrees },
+              { ...pose.rotation, [axis]: snapManualAngle(degrees) },
               libraryByIdRef.current,
             )
           : previous;
@@ -856,7 +851,8 @@ export default function App() {
       if (selectedIds.length !== 1) return;
       dispatchHistory({
         type: 'edit',
-        apply: (previous) => swingPiece(previous, selectedIds[0]!, angle, libraryByIdRef.current),
+        apply: (previous) =>
+          swingPiece(previous, selectedIds[0]!, snapManualAngle(angle), libraryByIdRef.current),
       });
     },
     [selectedIds],
@@ -1149,15 +1145,11 @@ export default function App() {
               single={singleSelected}
               selectedCount={selected.length}
               mode={selectionMode}
-              step={rotateStep}
               hoverAxis={handleHover}
               onSetMode={handleSetMode}
-              onSetStep={setRotateStep}
               onMove={moveSelected}
               onRotateStep={rotateStepSelected}
-              onRotate90={rotate90Selected}
               onSetAngle={setAngleSelected}
-              onFlip={flipSelected}
               onResetOrientation={resetOrientationSelected}
               hingeMode={hingeMode}
               onHingeMode={() => {

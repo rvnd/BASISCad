@@ -11,8 +11,9 @@ import type { RotationDeg } from './design';
  * panel shows.
  */
 
-/** The quick-rotate step sizes, in degrees. */
-export const ROTATION_STEPS: readonly number[] = [15, 45, 90];
+/** Fixed increment for all manual rotation controls. */
+export const MANUAL_ROTATION_STEP_DEG = 22.5;
+export const ROTATION_STEPS: readonly number[] = [MANUAL_ROTATION_STEP_DEG];
 
 /** True for a step size the panel offers. */
 export function isRotationStep(value: number): boolean {
@@ -54,18 +55,17 @@ export function flipRotation(rotation: RotationDeg, axis: keyof RotationDeg): Ro
   return addRotation(rotation, axis, 180);
 }
 
-/**
- * Snap a rotation change to the nearest multiple of a step size, so a
- * panel button press moves in step-sized jumps: a 17° change at a 15°
- * step becomes 15°, a 23° change becomes 30°, and a -30° change stays
- * -30°. A step of 0 or less means no snapping. (Handle drags use
- * Tinkercad's snap rule in `src/three/rotationHandles.ts` instead.)
- */
+/** Snap a change relative to the starting pose; nonpositive steps leave it unchanged. */
 export function snapDeltaDeg(delta: number, step: number): number {
   if (!(step > 0)) {
     return delta;
   }
-  return Math.round(delta / step) * step;
+  return Math.sign(delta) * Math.round(Math.abs(delta) / step) * step;
+}
+
+/** Snap typed absolute angles to the fixed manual increment, then wrap for display. */
+export function snapManualAngle(degrees: number): number {
+  return normalizeAngleDeg(snapDeltaDeg(normalizeAngleDeg(degrees), MANUAL_ROTATION_STEP_DEG));
 }
 
 /** No rotation on any axis. */

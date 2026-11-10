@@ -13,8 +13,10 @@ async function prepareStack(page: Page, upright = false) {
   const panel = page.getByRole('region', { name: 'Move and rotate' });
   for (const height of [0, 3.175]) {
     await place.click();
-    if (upright)
-      await page.getByRole('button', { name: 'Rotate X 90 degrees', exact: true }).click();
+    if (upright) {
+      await panel.getByLabel('X angle in °').fill('90');
+      await panel.getByLabel('X angle in °').press('Enter');
+    }
     for (const [label, value] of [
       ['X in mm', '0'],
       ['Z in mm', height === 0 ? '0' : '20'],

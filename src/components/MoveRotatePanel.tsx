@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { PositionMm, RotationDeg, SelectionMode } from '../app/design';
-import { ROTATION_STEPS } from '../app/rotation';
+import { MANUAL_ROTATION_STEP_DEG } from '../app/rotation';
 import { parseAngleInput, parsePositionInput } from '../app/rotation';
 import { HANDLE_AXIS_COLOUR_NAMES, HANDLE_AXIS_HEX } from '../three/rotationHandles';
 import type { RotationAxis } from '../three/rotationHandles';
@@ -15,7 +15,7 @@ import type { RotationAxis } from '../three/rotationHandles';
  * X/Y/Z angles at all times, and Move fields for X, Y (height above
  * the workplane), and Z. Typing a value and pressing Enter (or
  * leaving the field) applies it; an invalid value reverts to the
- * current one. With several pieces selected the step, flip, and
+ * current one. With several pieces selected the step and
  * reset buttons apply to all of them together, and the typed fields
  * are disabled with a note — an exact position only means something
  * for one piece.
@@ -120,17 +120,12 @@ interface MoveRotatePanelProps {
   single: SingleSelection | null;
   selectedCount: number;
   mode: SelectionMode;
-  step: number;
   /** The rotation handle the pointer currently hovers, if any. */
   hoverAxis: RotationAxis | null;
   onSetMode: (mode: SelectionMode) => void;
-  onSetStep: (step: number) => void;
   onMove: (axis: Axis, value: number) => void;
   onRotateStep: (axis: Axis, direction: 1 | -1) => void;
-  /** One tap: rotate every selected piece +90° about this axis. */
-  onRotate90: (axis: Axis) => void;
   onSetAngle: (axis: Axis, degrees: number) => void;
-  onFlip: (axis: Axis) => void;
   onResetOrientation: () => void;
   hingeMode: boolean;
   onHingeMode: () => void;
@@ -141,15 +136,11 @@ export default function MoveRotatePanel({
   single,
   selectedCount,
   mode,
-  step,
   hoverAxis,
   onSetMode,
-  onSetStep,
   onMove,
   onRotateStep,
-  onRotate90,
   onSetAngle,
-  onFlip,
   onResetOrientation,
   hingeMode,
   onHingeMode,
@@ -207,8 +198,8 @@ export default function MoveRotatePanel({
       {hingeMode ? (
         <>
           <p className="panel-note">
-            Drag the piece around its screw, or type an exact hinge angle. The screw and the other
-            pieces stay fixed.
+            Drag the piece around its screw in 22.5° steps, or type an angle rounded to 22.5°. The
+            screw and the other pieces stay fixed.
           </p>
           <NumberField
             label="Hinge angle"
@@ -225,7 +216,7 @@ export default function MoveRotatePanel({
             <p className="panel-note">
               {mode === 'move'
                 ? 'Drag the piece to move it, or type exact coordinates below. Switch to Rotate to show the rotation handles.'
-                : 'Drag a curved arrow handle to turn about that axis — inside the circle it snaps to 22.5°, outside it turns freely in 1° steps, hold Shift for 45° steps. Or drag the piece itself to turn it about Y (up).'}
+                : 'Drag a curved arrow handle to turn about that axis in 22.5° steps, or drag the piece itself to turn about Y (up). Typed angles round to the nearest 22.5°.'}
             </p>
             {hoverAxis !== null && (
               <p
@@ -271,8 +262,8 @@ export default function MoveRotatePanel({
             <h3 className="move-rotate-heading">Rotate</h3>
             {single === null ? (
               <p className="panel-note">
-                Select a single piece to type exact angles. The step, flip, and reset buttons below
-                apply to every selected piece.
+                Select a single piece to type angles rounded to 22.5°. The step and reset buttons
+                below apply to every selected piece.
               </p>
             ) : (
               <div className="field-row">
@@ -292,22 +283,9 @@ export default function MoveRotatePanel({
                 ))}
               </div>
             )}
-            <div className="step-row" role="group" aria-label="Rotation step size">
-              <span className="step-label">Step:</span>
-              {ROTATION_STEPS.map((candidate) => (
-                <button
-                  key={candidate}
-                  type="button"
-                  className="step-button"
-                  aria-pressed={step === candidate}
-                  onClick={() => {
-                    onSetStep(candidate);
-                  }}
-                >
-                  {candidate}°
-                </button>
-              ))}
-            </div>
+            <p className="step-row" aria-label="Rotation step size">
+              <span className="step-label">Step: {MANUAL_ROTATION_STEP_DEG}°</span>
+            </p>
             {AXES.map((axis) => (
               <div key={axis} className="rotate-row">
                 <span
@@ -319,42 +297,22 @@ export default function MoveRotatePanel({
                 <button
                   type="button"
                   className="control-button rotate-button"
-                  aria-label={`Rotate ${axis.toUpperCase()} by minus ${step} degrees`}
+                  aria-label={`Rotate ${axis.toUpperCase()} by minus ${MANUAL_ROTATION_STEP_DEG} degrees`}
                   onClick={() => {
                     onRotateStep(axis, -1);
                   }}
                 >
-                  −{step}°
+                  −{MANUAL_ROTATION_STEP_DEG}°
                 </button>
                 <button
                   type="button"
                   className="control-button rotate-button"
-                  aria-label={`Rotate ${axis.toUpperCase()} by plus ${step} degrees`}
+                  aria-label={`Rotate ${axis.toUpperCase()} by plus ${MANUAL_ROTATION_STEP_DEG} degrees`}
                   onClick={() => {
                     onRotateStep(axis, 1);
                   }}
                 >
-                  +{step}°
-                </button>
-                <button
-                  type="button"
-                  className="control-button rotate-button"
-                  aria-label={`Rotate ${axis.toUpperCase()} 90 degrees`}
-                  onClick={() => {
-                    onRotate90(axis);
-                  }}
-                >
-                  90°
-                </button>
-                <button
-                  type="button"
-                  className="control-button rotate-button"
-                  aria-label={`Flip ${axis.toUpperCase()} 180 degrees`}
-                  onClick={() => {
-                    onFlip(axis);
-                  }}
-                >
-                  Flip 180°
+                  +{MANUAL_ROTATION_STEP_DEG}°
                 </button>
               </div>
             ))}

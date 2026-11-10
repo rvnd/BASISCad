@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MANUAL_ROTATION_STEP_DEG, snapDeltaDeg } from '../app/rotation';
 
 /**
  * Tinkercad-style rotation handles (Milestone 4 rebuild).
@@ -15,13 +16,7 @@ import * as THREE from 'three';
  *   the piece's edge — not a full circle encircling the piece.
  * - While a handle is dragged, a protractor circle appears in that
  *   handle's plane with tick marks and a live angle readout.
- * - Snap rules, also Tinkercad's: dragging with the pointer inside
- *   the protractor circle snaps to 22.5° steps, outside it rotates
- *   freely in 1° steps, and holding Shift snaps to 45° steps.
- *   Sources: Tinkercad Quickstart Guide
- *   (https://cplmakerlab.github.io/guide/tinkercad-quickstart-guide/)
- *   and BMCC Makerspace 3D Workshop
- *   (https://openlab.bmcc.cuny.edu/makerspace/3d-workshop/).
+ * - All manual drags snap to 22.5° increments from their starting pose.
  *
  * Picking is mesh-based, not plane maths: a pointer ray is cast
  * against the handle meshes themselves, and every mesh of a handle
@@ -98,27 +93,9 @@ export function unwrapAngleDelta(fromDeg: number, toDeg: number): number {
   return ((((toDeg - fromDeg + 540) % 360) + 360) % 360) - 180;
 }
 
-/**
- * Tinkercad's drag snap rule for a rotation-handle drag, applied to
- * the total change since the drag started. Holding Shift snaps to
- * 45°; with the pointer inside the protractor circle (at or within
- * its radius) the change snaps to 22.5°; outside the circle it moves
- * freely in 1° steps. A zero or negative protractor radius means
- * "outside", so the drag is free in 1° steps.
- */
-export function snapDragDeltaDeg(
-  rawDeltaDeg: number,
-  pointerRadialMm: number,
-  protractorRadiusMm: number,
-  shiftKey: boolean,
-): number {
-  if (shiftKey) {
-    return Math.round(rawDeltaDeg / 45) * 45;
-  }
-  if (protractorRadiusMm > 0 && pointerRadialMm <= protractorRadiusMm) {
-    return Math.round(rawDeltaDeg / 22.5) * 22.5;
-  }
-  return Math.round(rawDeltaDeg);
+/** Fixed detents relative to the starting pose, for handles, body drags and touch. */
+export function snapDragDeltaDeg(rawDeltaDeg: number): number {
+  return snapDeltaDeg(rawDeltaDeg, MANUAL_ROTATION_STEP_DEG);
 }
 
 /**

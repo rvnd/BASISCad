@@ -157,7 +157,10 @@ rings on every aligned hole, and supports the 2 mm tolerance, Snap holes
 toggle, and Alt bypass. Imported flat meshes use through-hole detection.
 Milestone 7 prevents solid overlap while allowing face contact and empty
 bores. Dragged pieces slide, climb across obstacles, and descend; typed
-moves and swept rotations obey the same floor and collision rules. New
+moves and swept rotations obey the same floor and collision rules. Manual rotation
+uses 22.5° increments for handles, piece dragging, hinges, touch controls, and +/-
+buttons. Typed angles round to the nearest 22.5°; position fields keep millimetre
+precision. New
 pieces start at a free position.
 
 Milestone 8 adds Connect: pick two hole markers, retry difficult placements,

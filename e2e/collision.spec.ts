@@ -80,7 +80,8 @@ test('rejects overlapping typed moves and swept rotations, and restores the disp
   await panel.getByLabel('Z in mm').press('Enter');
   await expect.poll(async () => (await position(page)).z).toBe(-35);
   await expect(panel.getByLabel('Z in mm')).toHaveValue('-35');
-  await page.getByRole('button', { name: 'Rotate Y 90 degrees', exact: true }).click();
+  await panel.getByLabel('Y angle in °').fill('90');
+  await panel.getByLabel('Y angle in °').press('Enter');
   await expect(panel.getByLabel('Y angle in °')).toHaveValue('0');
   await panel.getByLabel('Y · height in mm').fill('-10');
   await panel.getByLabel('Y · height in mm').press('Enter');

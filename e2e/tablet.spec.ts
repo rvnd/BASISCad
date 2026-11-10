@@ -43,6 +43,12 @@ async function drag(
       type: 'touchMove',
       touchPoints: [left, { ...right, x: right.x + (dx * i) / 6, y: right.y + (dy * i) / 6 }],
     });
+    if (name.startsWith('Rotate')) {
+      const axis = name.at(-1)!.toLowerCase();
+      await expect
+        .poll(async () => Math.abs((await pieces(page))[0].rotation[axis] % 22.5))
+        .toBe(0);
+    }
   }
   if (releaseLeftEarly) {
     const endpoint = { ...right, x: right.x + dx, y: right.y + dy };
@@ -110,8 +116,8 @@ test('two touches rotate Z through 180 degrees and move each axis independently 
       await expect.poll(() => pieces(page)).toEqual(baseline);
     }
     for (const axis of ['x', 'y'] as const) {
-      await drag(page, cdp, `Rotate ${axis.toUpperCase()}`, 90, 0);
-      await expect.poll(async () => (await pieces(page))[0].rotation[axis]).toBeCloseTo(45, 4);
+      await drag(page, cdp, `Rotate ${axis.toUpperCase()}`, 37, 0);
+      await expect.poll(async () => (await pieces(page))[0].rotation[axis]).toBeCloseTo(22.5, 4);
       const rotated = (await pieces(page))[0];
       for (const other of ['x', 'y', 'z'] as const) {
         if (other !== axis) expect(rotated.rotation[other]).toBe(baseline[0].rotation[other]);

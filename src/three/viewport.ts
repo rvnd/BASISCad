@@ -229,8 +229,6 @@ export function createViewport(
         startRotationDeg: number;
         lastAngleDeg: number;
         totalDeltaDeg: number;
-        /** The protractor radius at the drag start, for the snap rule. */
-        radiusMm: number;
       }
     | { kind: 'rotate'; placedId: string; startClientX: number; startRotationDeg: number };
   let gesture: Gesture | null = null;
@@ -360,7 +358,6 @@ export function createViewport(
           startRotationDeg: rotation[handle.axis],
           lastAngleDeg: handle.angleDeg,
           totalDeltaDeg: 0,
-          radiusMm: handle.radiusMm,
         };
         controls.enabled = false;
         setCursor('grabbing');
@@ -481,7 +478,8 @@ export function createViewport(
           gesture.placedId,
           axis,
           normalizeAngleDeg(
-            gesture.startPose.rotation[axis] + delta.x * ROTATE_DRAG_DEGREES_PER_PX,
+            gesture.startPose.rotation[axis] +
+              snapDragDeltaDeg(delta.x * ROTATE_DRAG_DEGREES_PER_PX),
           ),
         );
       } else {
@@ -511,7 +509,10 @@ export function createViewport(
       );
       gesture.totalDelta += unwrapAngleDelta(gesture.lastAngle, angle);
       gesture.lastAngle = angle;
-      designCallbacks.onHingeAngle?.(gesture.placedId, gesture.startAngle + gesture.totalDelta);
+      designCallbacks.onHingeAngle?.(
+        gesture.placedId,
+        gesture.startAngle + snapDragDeltaDeg(gesture.totalDelta),
+      );
       return;
     }
     if (gesture.kind === 'handle') {
@@ -522,15 +523,7 @@ export function createViewport(
       }
       gesture.totalDeltaDeg += unwrapAngleDelta(gesture.lastAngleDeg, angle.angleDeg);
       gesture.lastAngleDeg = angle.angleDeg;
-      // Tinkercad's snap rule: inside the protractor circle the drag
-      // snaps to 22.5°, outside it turns freely in 1° steps, and
-      // holding Shift snaps to 45° — all from where the drag started.
-      const snappedDelta = snapDragDeltaDeg(
-        gesture.totalDeltaDeg,
-        angle.radialMm,
-        gesture.radiusMm,
-        event.shiftKey,
-      );
+      const snappedDelta = snapDragDeltaDeg(gesture.totalDeltaDeg);
       const newAngle = normalizeAngleDeg(gesture.startRotationDeg + snappedDelta);
       designScene.setProtractor(gesture.axis, newAngle);
       invalidate();
@@ -543,7 +536,7 @@ export function createViewport(
         'y',
         normalizeAngleDeg(
           gesture.startRotationDeg +
-            (event.clientX - gesture.startClientX) * ROTATE_DRAG_DEGREES_PER_PX,
+            snapDragDeltaDeg((event.clientX - gesture.startClientX) * ROTATE_DRAG_DEGREES_PER_PX),
         ),
       );
       return;

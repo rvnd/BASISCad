@@ -11,7 +11,7 @@ export const GUIDE_STEPS = [
   },
   {
     title: 'Rotate a piece',
-    text: 'Choose Rotate and drag a coloured curved handle, or enter a precise angle. Try Y = 90°. Rotation changes orientation; it keeps the printed piece size.',
+    text: 'Choose Rotate and drag a coloured curved handle, in 22.5° steps, or type an angle rounded to 22.5°. Try Y = 90°. Rotation changes orientation; it keeps the printed piece size.',
   },
   {
     title: 'Connect two holes',

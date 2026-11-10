@@ -4,7 +4,7 @@ import { HANDLE_AXIS_HEX } from '../three/rotationHandles';
 import type { RotationAxis } from '../three/rotationHandles';
 
 /**
- * The big live angle badge (Milestone 4): a large "X 46°" pill in the
+ * The big live angle badge (Milestone 4): a large "X 22.5°" pill in the
  * dragged axis's colour, overlaid at the bottom centre of the
  * viewport while a rotation handle is dragged, updating live from the
  * piece's rotation. It never blocks the canvas — the wrapper ignores
@@ -12,9 +12,8 @@ import type { RotationAxis } from '../three/rotationHandles';
  * editing) takes it.
  *
  * Clicking the badge turns it into a text input for that axis: type
- * an angle and press Enter (or leave the field) to apply it exactly,
- * with the same parsing as the panel's typed angle fields ("-30" sets
- * exactly -30). Escape cancels and restores the badge.
+ * an angle and press Enter (or leave the field) to round it to 22.5° increments,
+ * like the panel's typed angle fields ("-30" sets -22.5). Escape cancels and restores the badge.
  *
  * The badge cannot be clicked in the middle of a drag (the pointer is
  * busy dragging), so it lingers after release while the piece stays
@@ -58,14 +57,14 @@ export default function AngleBadge({ axis, angle, onSetAngle }: AngleBadgeProps)
 
   if (editing) {
     return (
-      <div className="angle-badge-wrap" aria-label="Type an exact angle">
+      <div className="angle-badge-wrap" aria-label="Type an angle">
         <input
           className="angle-badge-input"
           type="text"
           inputMode="decimal"
           value={draft}
           autoFocus
-          aria-label={`Type an exact angle for ${axis.toUpperCase()}`}
+          aria-label={`Type an angle for ${axis.toUpperCase()}`}
           style={{ borderColor: hex, color: hex }}
           onChange={(event) => {
             setDraft(event.target.value);
@@ -97,8 +96,8 @@ export default function AngleBadge({ axis, angle, onSetAngle }: AngleBadgeProps)
         type="button"
         className="angle-badge"
         style={{ borderColor: hex, color: hex }}
-        title="Click to type an exact angle"
-        aria-label={`Angle about ${axis.toUpperCase()}: ${formatAngleValue(angle)} degrees. Click to type an exact angle.`}
+        title="Click to type an angle"
+        aria-label={`Angle about ${axis.toUpperCase()}: ${formatAngleValue(angle)} degrees. Click to type an angle.`}
         onClick={() => {
           setDraft(formatAngleValue(angle));
           setEditing(true);

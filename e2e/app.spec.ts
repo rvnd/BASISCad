@@ -95,6 +95,10 @@ test('rotates a piece from the X handle and updates the live angle', async ({ pa
   camera.position.multiplyScalar(0.8 ** 4);
   camera.lookAt(0, 0, 0);
   camera.updateMatrixWorld();
+  const endpoint = handlePoint('x', HANDLE_ARC_DEG.x.start + 30)
+    .multiplyScalar(rotationHandleRadius(geometry.boundingSphere!.radius) * 1.7)
+    .add(centre)
+    .project(camera);
   knob.project(camera);
   geometry.dispose();
   const target = {
@@ -104,13 +108,27 @@ test('rotates a piece from the X handle and updates the live angle', async ({ pa
   await page.mouse.move(target.x, target.y);
   await expect(hoverNote).toContainText('about X');
   await page.mouse.down();
-  await page.mouse.move(target.x + 22, target.y - 28, { steps: 8 });
+  // Outside the protractor and with Shift held, a 30° drag still rounds to 22.5°.
+  await page.keyboard.down('Shift');
+  await page.mouse.move(
+    bounds.x + ((endpoint.x + 1) / 2) * bounds.width,
+    bounds.y + ((1 - endpoint.y) / 2) * bounds.height,
+    { steps: 8 },
+  );
   await page.mouse.up();
+  await page.keyboard.up('Shift');
 
   const angleBadge = page.locator('.angle-badge');
   await expect(angleBadge).toBeVisible();
   await expect(angleBadge).toContainText('X');
-  await expect(angleBadge).not.toHaveText('X 0°');
+  await expect(angleBadge).toHaveText('X 22.5°');
+  const field = page.getByLabel('X angle in °', { exact: true });
+  expect(Math.abs(Number(await field.inputValue()) % 22.5)).toBe(0);
+  await angleBadge.click();
+  await page.getByLabel('Type an angle for X', { exact: true }).fill('-30');
+  await page.getByLabel('Type an angle for X', { exact: true }).press('Enter');
+  await expect(field).toHaveValue('-22.5');
+  await expect(page.locator('.angle-badge')).toHaveText('X -22.5°');
 });
 
 test('undo and redo restore a placed piece with buttons and keyboard shortcuts', async ({
