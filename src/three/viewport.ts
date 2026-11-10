@@ -1,4 +1,7 @@
 import type { LabelMode } from '../app/labels';
+import { axisDragDelta } from '../app/tabletControls';
+import type { TabletAction } from '../app/tabletControls';
+import { tabletAxisProjection } from './tabletProjection';
 import type { BlueprintLabel } from './blueprintLabels';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -28,6 +31,7 @@ import type { RotationAxis } from './rotationHandles';
  */
 
 export interface ViewportHandle {
+  setTabletAction(action: TabletAction | null): void;
   setLabelsMode(mode: LabelMode): void;
   setHingeEnabled(enabled: boolean): void;
   setHoleMarkersEnabled(enabled: boolean, spacingPx?: number): void;
@@ -61,6 +65,8 @@ export interface ViewportHandle {
  * instead of jumping so its centre is under the cursor.
  */
 export interface ViewportDesignCallbacks {
+  selectionPose?(id: string): { position: PositionMm; rotation: RotationDeg } | null;
+  onMoveAxis?(id: string, axis: RotationAxis, value: number): void;
   onBlueprintLabels?(labels: readonly BlueprintLabel[]): void;
   canMovePiece?(id: string): boolean;
   hingeInfo?(id: string): { pivot: PositionMm; axis: PositionMm; angle: number } | null;
@@ -174,6 +180,8 @@ export function createViewport(
   /** Degrees of Y rotation per pixel of horizontal drag in Rotate mode. */
   const ROTATE_DRAG_DEGREES_PER_PX = 0.5;
   let selectionMode: SelectionMode = 'move';
+  let tabletAction: TabletAction | null = null;
+  let selectedId: string | null = null;
   let holeSnappingEnabled = true;
   let hingeEnabled = false;
   let holePicking = false;
@@ -188,6 +196,14 @@ export function createViewport(
   let hoveredHandle: RotationAxis | null = null;
   let downAt: { x: number; y: number } | null = null;
   type Gesture =
+    | {
+        kind: 'tablet';
+        placedId: string;
+        pointerId: number;
+        action: TabletAction;
+        startPose: { position: PositionMm; rotation: RotationDeg };
+        projection: { x: number; y: number };
+      }
     | { kind: 'select'; placedId: string }
     | {
         kind: 'hinge';
@@ -262,7 +278,12 @@ export function createViewport(
   const endPointerGesture = (event: PointerEvent): void => {
     if (gesture !== null) {
       controls.enabled = true;
-      if (!moved && designCallbacks !== undefined && gesture.kind !== 'handle') {
+      if (
+        !moved &&
+        designCallbacks !== undefined &&
+        gesture.kind !== 'handle' &&
+        gesture.kind !== 'tablet'
+      ) {
         designCallbacks.onSelectPiece(gesture.placedId, event.shiftKey);
       }
       if (gesture.kind === 'handle' && designCallbacks !== undefined) {
@@ -282,10 +303,38 @@ export function createViewport(
 
   const onPointerDown = (event: PointerEvent): void => {
     if (holePicking) return;
+    if (gesture?.kind === 'tablet') return;
     downAt = { x: event.clientX, y: event.clientY };
     moved = false;
     gesture = null;
     if (designCallbacks === undefined) {
+      return;
+    }
+    if (tabletAction && event.pointerType === 'touch' && selectedId) {
+      const pose = designCallbacks.selectionPose?.(selectedId);
+      if (!pose || designCallbacks.canMovePiece?.(selectedId) === false) return;
+      designCallbacks.onBeginEdit();
+      const rect = renderer.domElement.getBoundingClientRect();
+      gesture = {
+        kind: 'tablet',
+        placedId: selectedId,
+        pointerId: event.pointerId,
+        action: tabletAction,
+        startPose: pose,
+        projection: tabletAxisProjection(
+          camera,
+          rect.width,
+          rect.height,
+          pose.position,
+          tabletAction.axis,
+        ),
+      };
+      controls.enabled = false;
+      renderer.domElement.setPointerCapture(event.pointerId);
+      if (tabletAction.kind === 'rotate') {
+        designCallbacks.onBeginRotate(selectedId);
+        designCallbacks.onHandleDrag(selectedId, tabletAction.axis);
+      }
       return;
     }
     const ndc = eventToNdc(event, renderer.domElement);
@@ -393,6 +442,7 @@ export function createViewport(
   };
 
   const onPointerMove = (event: PointerEvent): void => {
+    if (gesture?.kind === 'tablet' && gesture.pointerId !== event.pointerId) return;
     if (downAt !== null) {
       const movedPx = Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y);
       if (movedPx > CLICK_SLOP_PX) {
@@ -407,6 +457,33 @@ export function createViewport(
       return;
     }
     if (gesture.kind === 'select') return;
+    if (gesture.kind === 'tablet') {
+      if (
+        !tabletAction ||
+        tabletAction.kind !== gesture.action.kind ||
+        tabletAction.axis !== gesture.action.axis ||
+        !downAt
+      )
+        return;
+      const delta = { x: event.clientX - downAt.x, y: event.clientY - downAt.y };
+      const { axis, kind } = gesture.action;
+      if (kind === 'rotate') {
+        designCallbacks.onRotatePiece(
+          gesture.placedId,
+          axis,
+          normalizeAngleDeg(
+            gesture.startPose.rotation[axis] + delta.x * ROTATE_DRAG_DEGREES_PER_PX,
+          ),
+        );
+      } else {
+        designCallbacks.onMoveAxis?.(
+          gesture.placedId,
+          axis,
+          gesture.startPose.position[axis] + axisDragDelta(delta, gesture.projection),
+        );
+      }
+      return;
+    }
     if (gesture.kind === 'hinge') {
       const ray = new THREE.Raycaster();
       const ndc = eventToNdc(event, renderer.domElement);
@@ -477,6 +554,7 @@ export function createViewport(
   };
 
   const onPointerUp = (event: PointerEvent): void => {
+    if (gesture?.kind === 'tablet' && gesture.pointerId !== event.pointerId) return;
     endPointerGesture(event);
   };
 
@@ -609,6 +687,7 @@ export function createViewport(
       library: readonly LibraryPiece[],
       selectedIds: readonly string[],
     ): void {
+      selectedId = selectedIds[0] ?? null;
       designScene.sync(placed, library, selectedIds);
       holesDirty = true;
       designCallbacks?.onAlignmentChange?.(designScene.alignedHoleCount());
@@ -620,6 +699,9 @@ export function createViewport(
       // setHandlesEnabled re-evaluates from the last sync, so the
       // handles appear the moment Rotate mode is entered.
       designScene.setHandlesEnabled(!holePicking && !hingeEnabled && mode === 'rotate');
+    },
+    setTabletAction(action): void {
+      tabletAction = action;
     },
     setHoleSnappingEnabled(enabled: boolean): void {
       holeSnappingEnabled = enabled;

@@ -1,5 +1,8 @@
 import PrintViewDialog from './components/PrintViewDialog';
 import FirstUseGuide from './components/FirstUseGuide';
+import TabletControls from './components/TabletControls';
+import { isTabletInput } from './app/tabletControls';
+import type { TabletAction } from './app/tabletControls';
 import { markGuideSeen, readGuideSeen } from './app/guide';
 import PrintReport from './components/PrintReport';
 import { printBudget } from './app/printBudget';
@@ -129,6 +132,30 @@ export default function App() {
   const viewportRef = useRef<ViewportHandle | null>(null);
   const libraryByIdRef = useRef(new Map<string, LibraryPiece>());
   const [viewportReady, setViewportReady] = useState(false);
+  const [tabletInput, setTabletInput] = useState(false);
+  const [tabletAction, setTabletAction] = useState<TabletAction | null>(null);
+  useEffect(() => {
+    const media = window.matchMedia('(any-pointer: coarse)');
+    const update = () =>
+      setTabletInput(
+        isTabletInput({
+          touchPoints: navigator.maxTouchPoints,
+          coarsePointer: media.matches,
+          width: screen.width,
+          height: screen.height,
+        }),
+      );
+    update();
+    media.addEventListener('change', update);
+    window.addEventListener('resize', update);
+    return () => {
+      media.removeEventListener('change', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+  useEffect(() => {
+    viewportRef.current?.setTabletAction(tabletInput ? tabletAction : null);
+  }, [tabletInput, tabletAction, viewportReady]);
   const [currentView, setCurrentView] = useState<CameraViewId>(DEFAULT_CAMERA_VIEW_ID);
   const [importedPieces, setImportedPieces] = useState<readonly LibraryPiece[]>([]);
   const [importing, setImporting] = useState(false);
@@ -566,6 +593,26 @@ export default function App() {
 
   const designCallbacks: ViewportDesignCallbacks = useMemo(
     () => ({
+      selectionPose(id) {
+        return selectionPose(placedRef.current, [id], libraryByIdRef.current);
+      },
+      onMoveAxis(id, axis, value): void {
+        dispatchHistory({
+          type: 'edit',
+          apply: (previous) => {
+            const pose = selectionPose(previous, [id], libraryByIdRef.current);
+            return pose
+              ? moveAssembly(
+                  previous,
+                  [id],
+                  { ...pose.position, [axis]: value },
+                  libraryByIdRef.current,
+                  true,
+                )
+              : previous;
+          },
+        });
+      },
       onBlueprintLabels: setBlueprintLabels,
       onHoleTargets: setHoleTargets,
       onAlignmentChange: setAlignedHoleCount,
@@ -1043,7 +1090,20 @@ export default function App() {
               setConnectionNotice('No empty aligned holes. Align two to four layers first.');
           }}
         />
-        <div className="viewport-wrap">
+        <div className={`viewport-wrap${tabletInput ? ' tablet-input' : ''}`}>
+          {tabletInput && (
+            <TabletControls
+              action={tabletAction}
+              disabled={
+                !singleSelected ||
+                singleSelected.locked ||
+                connecting ||
+                fastening ||
+                dialogMode !== null
+              }
+              onHold={setTabletAction}
+            />
+          )}
           {guideOpen && <FirstUseGuide key={activeDesign.id} onClose={closeGuide} />}
           <Viewport onReady={onViewportReady} designCallbacks={designCallbacks} />
           <BlueprintLabels

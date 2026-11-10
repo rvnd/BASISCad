@@ -1374,3 +1374,44 @@ body {
   min-height: 32px;
   padding: 5px 9px;
 }
+
+.tablet-controls {
+  position: absolute;
+  z-index: 13;
+  bottom: 12px;
+  left: 12px;
+  width: min(310px, calc(100% - 24px));
+  padding: 10px;
+  border: 1px solid #abb4bd;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 3px 14px #0002;
+  touch-action: none;
+  user-select: none;
+}
+
+.tablet-controls p {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.tablet-axis-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.tablet-axis-buttons button {
+  min-height: 44px;
+  padding: 6px;
+  touch-action: none;
+}
+
+.tablet-axis-buttons button[aria-pressed='true'] {
+  background: #d03f43;
+  color: white;
+}
+
+.tablet-input .first-use-guide {
+  bottom: 174px;
+}
