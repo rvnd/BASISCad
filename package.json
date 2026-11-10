@@ -28,7 +28,10 @@
     "preview": "vite preview",
     "test": "vitest run --exclude=e2e/**",
     "test:e2e": "playwright test",
-    "typecheck": "tsc -b"
+    "test:e2e:install": "playwright install chromium",
+    "test:watch": "vitest --exclude=e2e/**",
+    "typecheck": "tsc -b",
+    "validate": "npm run format && npm run lint && npm test && npm run build && npm run test:e2e"
   },
   "type": "module",
   "version": "0.1.0"

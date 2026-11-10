@@ -58,6 +58,27 @@ npm run typecheck
 npm run lint
 ```
 
+## Validate changes
+
+Vitest covers application logic and Three.js geometry in `src/**/*.test.ts`.
+Playwright runs Chromium smoke tests in `e2e/*.spec.ts`, starting Vite automatically.
+Typechecking includes the browser tests and their configuration.
+
+```sh
+nvm use
+npm ci
+npm run test:e2e:install # first time, or after updating Playwright
+npm run validate       # formatting, lint, unit tests, typecheck/build, browser tests
+npm run test:watch     # unit tests while editing
+```
+
+To use installed Google Chrome, run `PLAYWRIGHT_CHANNEL=chrome npm run validate`.
+Run browser tests from a terminal that permits browser processes to launch;
+restricted agent environments may block both Chromium and Chrome. CI uses bundled Chromium on Linux.
+Browser failures save screenshots and traces in `test-results/` and an HTML report in
+`playwright-report/`; open the report with `npx playwright show-report`.
+Vendored geometry inputs and generated output are excluded from formatting.
+
 ## Deploy
 
 Every push to `main` deploys automatically via

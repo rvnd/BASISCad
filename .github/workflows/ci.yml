@@ -1,7 +1,7 @@
 name: CI
 
-# Runs on every pull request and every push to main: typecheck, lint,
-# unit tests, then a full production build. The deploy workflow only
+# Runs on every pull request and every push to main: formatting, typecheck,
+# lint, unit tests, production build, and Chromium browser tests. Deployment only
 # runs on main, so a PR that breaks the build is caught here first.
 
 on:
@@ -28,6 +28,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check formatting
+        run: npm run format
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -39,3 +42,20 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: npm run test:e2e
+
+      - name: Upload browser test failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failures
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

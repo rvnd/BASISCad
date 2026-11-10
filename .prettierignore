@@ -1,0 +1,7 @@
+# Preserve vendored API responses used to regenerate the library geometry.
+scripts/generate-library-stls/source/
+
+# Generated application and browser-test output.
+dist/
+playwright-report/
+test-results/
