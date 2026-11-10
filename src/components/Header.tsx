@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { BRAND_RED } from '../app/constants';
+import Brand from './Brand';
 
 interface HeaderProps {
   tools?: ReactNode;
@@ -15,6 +15,8 @@ interface HeaderProps {
   onOpen: () => void;
   onNew: () => void;
   onManage: () => void;
+  canPrint: boolean;
+  onPrint: () => void;
 }
 
 export default function Header({
@@ -29,6 +31,8 @@ export default function Header({
   onOpen,
   onNew,
   onManage,
+  canPrint,
+  onPrint,
   tools,
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -66,36 +70,7 @@ export default function Header({
   return (
     <header className="header">
       <div className="header-start">
-        <div className="brand" aria-label="BASIScad">
-          <svg
-            className="brand-chevrons"
-            viewBox="0 0 32 32"
-            width="28"
-            height="28"
-            aria-hidden="true"
-          >
-            <polyline
-              points="5,5 15,16 5,27"
-              fill="none"
-              stroke={BRAND_RED}
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <polyline
-              points="16,5 26,16 16,27"
-              fill="none"
-              stroke={BRAND_RED}
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span className="brand-wordmark">
-            <span className="brand-basis">BASIS</span>
-            <span className="brand-cad">cad</span>
-          </span>
-        </div>
+        <Brand />
         <button
           type="button"
           className="design-name-button"
@@ -160,8 +135,11 @@ export default function Header({
               type="button"
               role="menuitem"
               className="menu-action"
-              disabled
-              title="Print Design — Milestone 12"
+              disabled={!canPrint}
+              onClick={() => {
+                setMenuOpen(false);
+                onPrint();
+              }}
             >
               Print Design
             </button>

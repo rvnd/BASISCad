@@ -1167,3 +1167,167 @@ body {
   touch-action: none;
   outline: 1px dashed #999;
 }
+
+.print-view-options {
+  display: flex;
+  gap: 18px;
+  margin: 18px 0;
+}
+.print-view-options label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.print-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #e7e7e7;
+  display: flex;
+  flex-direction: column;
+}
+.print-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border-bottom: 1px solid #ccc;
+}
+.print-controls button {
+  padding: 6px 10px;
+  background: white;
+  border: 1px solid #777;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.print-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+.print-page {
+  position: relative;
+  width: 210mm;
+  height: 297mm;
+  padding: 12mm;
+  box-sizing: border-box;
+  background: white;
+  color: #111;
+  margin: 0 auto 20px;
+  box-shadow: 0 1px 6px #aaa;
+  font:
+    13px/1.35 Arial,
+    sans-serif;
+}
+.print-page .brand-basis,
+.print-page .brand-cad {
+  color: #111;
+}
+.print-page .brand {
+  justify-content: flex-start;
+  margin-bottom: 18px;
+}
+.print-page h1 {
+  font-size: 22px;
+  margin: 10px 0;
+  overflow-wrap: anywhere;
+}
+.print-page h2 {
+  font-size: 17px;
+  margin: 12px 0 8px;
+}
+.print-page p {
+  margin: 6px 0;
+}
+.print-meta {
+  font-size: 12px;
+}
+.print-drawing {
+  display: block;
+  width: 100%;
+  max-height: 221mm;
+  font-family: Arial, sans-serif;
+}
+.print-page footer {
+  position: absolute;
+  left: 12mm;
+  right: 12mm;
+  bottom: 8mm;
+  text-align: right;
+  color: #555;
+  font-size: 11px;
+}
+.print-budget-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.print-budget-columns table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.print-budget-columns th,
+.print-budget-columns td {
+  padding: 4px 3px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+  vertical-align: top;
+}
+.print-budget-columns th {
+  border-color: #777;
+}
+.print-price-note {
+  color: #555;
+  font-size: 11px;
+}
+.print-evaluation {
+  margin-top: 25px;
+}
+.print-evaluation div {
+  height: 55mm;
+  border: 1px solid #777;
+  background: repeating-linear-gradient(white, white 9mm, #ddd 9mm, #ddd calc(9mm + 1px));
+}
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    width: 210mm;
+    height: auto;
+    overflow: visible;
+    background: white;
+  }
+  body > #root {
+    display: none !important;
+  }
+  .print-shell {
+    position: static;
+    display: block;
+    background: white;
+  }
+  .print-controls {
+    display: none;
+  }
+  .print-scroll {
+    display: block;
+    padding: 0;
+    overflow: visible;
+  }
+  .print-page {
+    margin: 0;
+    box-shadow: none;
+    break-after: page;
+    break-inside: avoid;
+  }
+  .print-page:last-child {
+    break-after: auto;
+  }
+}

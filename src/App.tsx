@@ -1,3 +1,8 @@
+import PrintViewDialog from './components/PrintViewDialog';
+import PrintReport from './components/PrintReport';
+import { printBudget } from './app/printBudget';
+import type { PrintBudget } from './app/printBudget';
+import type { PrintSnapshot, PrintView } from './three/printSnapshot';
 import LabelsPanel from './components/LabelsPanel';
 import BlueprintLabels from './components/BlueprintLabels';
 import { updateLabel, resetLabels } from './app/labels';
@@ -152,6 +157,16 @@ export default function App() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('move');
+  const [printDialog, setPrintDialog] = useState(false);
+  const [printBusy, setPrintBusy] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
+  const [printReport, setPrintReport] = useState<{
+    name: string;
+    date: string;
+    view: PrintView;
+    snapshot: PrintSnapshot;
+    budget: PrintBudget;
+  } | null>(null);
   const [labelsMove, setLabelsMove] = useState(false);
   const [blueprintLabels, setBlueprintLabels] = useState<readonly BlueprintLabel[]>([]);
   const [hingeMode, setHingeMode] = useState(false);
@@ -983,6 +998,12 @@ export default function App() {
         onOpen={() => showDialog('open')}
         onNew={() => showDialog('new')}
         onManage={() => showDialog('manage')}
+        canPrint={viewportReady && placed.length > 0}
+        onPrint={() => {
+          cancelConnection();
+          setPrintError(null);
+          setPrintDialog(true);
+        }}
       />
       <main className="app-main">
         <ViewControls
@@ -1123,6 +1144,54 @@ export default function App() {
           onPlace={placePiece}
         />
       </main>
+      {printDialog && (
+        <PrintViewDialog
+          error={printError}
+          busy={printBusy}
+          onClose={() => setPrintDialog(false)}
+          onPreview={(view) => {
+            setPrintBusy(true);
+            void import('./three/printSnapshot')
+              .then(({ renderPrintSnapshot }) => {
+                const library = new Map(libraryPieces.map((piece) => [piece.id, piece]));
+                const snapshot = renderPrintSnapshot(
+                  placed,
+                  library,
+                  view,
+                  activeDesign.labelMode ?? 'off',
+                );
+                setPrintReport({
+                  name: activeDesign.name,
+                  date: new Intl.DateTimeFormat(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  }).format(new Date()),
+                  view,
+                  snapshot,
+                  budget: printBudget(placed, library),
+                });
+                setPrintDialog(false);
+              })
+              .catch((error: unknown) =>
+                setPrintError(
+                  error instanceof Error ? error.message : 'Could not prepare the print preview.',
+                ),
+              )
+              .finally(() => setPrintBusy(false));
+          }}
+        />
+      )}
+      {printReport && (
+        <PrintReport
+          {...printReport}
+          onClose={() => setPrintReport(null)}
+          onChangeView={() => {
+            setPrintReport(null);
+            setPrintDialog(true);
+          }}
+        />
+      )}
       {pendingScrew && (
         <div className="dialog-backdrop">
           <section
