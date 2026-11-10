@@ -20,6 +20,7 @@
   "name": "basiscad",
   "private": true,
   "scripts": {
+    "benchmark": "node scripts/benchmark-interactions.mjs",
     "build": "tsc -b && vite build",
     "dev": "vite",
     "format": "prettier --check .",

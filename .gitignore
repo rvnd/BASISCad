@@ -28,3 +28,4 @@ test-results
 # Local print verification artifacts
 /output/pdf/
 /tmp/pdfs/
+/tmp/performance/
