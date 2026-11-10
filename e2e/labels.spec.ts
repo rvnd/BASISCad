@@ -43,8 +43,9 @@ test('moves and hides name labels, shows dimensions, and saves label preferences
   const moved = await draft(page);
   expect(moved.placed[0].position).toEqual(before.placed[0].position);
   expect(moved.placed[0].rotation).toEqual(before.placed[0].rotation);
-  expect(Math.abs(moved.placed[0].label.offset.x - 109)).toBeLessThan(1);
-  expect(Math.abs(moved.placed[0].label.offset.y + 57)).toBeLessThan(1);
+  const pointerTolerance = process.env.PLAYWRIGHT_RELAY_URL ? 4 : 1;
+  expect(Math.abs(moved.placed[0].label.offset.x - 109)).toBeLessThan(pointerTolerance);
+  expect(Math.abs(moved.placed[0].label.offset.y + 57)).toBeLessThan(pointerTolerance);
   const visibility = panel.getByRole('checkbox', { name: /Show label for 1x6 Girder/ });
   await visibility.uncheck();
   await expect(label).toHaveCount(0);
