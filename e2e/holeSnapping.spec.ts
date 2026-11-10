@@ -1,8 +1,8 @@
-import { expect, test } from '@playwright/test';
+import { appUrl, expect, test } from './fixtures';
 import type { Page } from '@playwright/test';
 
 async function prepareStack(page: Page) {
-  await page.goto('./');
+  await page.goto(appUrl);
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Design name').fill('Snapping Test');
   await dialog.getByRole('button', { name: 'Start Design' }).click();

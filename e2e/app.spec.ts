@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { appUrl, expect, test } from './fixtures';
 import * as THREE from 'three';
 import { defaultPlacement } from '../src/app/design';
 import { parsePieceGeometry } from '../src/three/loadPieceFile';
@@ -15,7 +15,7 @@ async function startDesign(page: import('@playwright/test').Page, name = 'Test D
 }
 
 test('loads the workplane and the available shape library', async ({ page }) => {
-  await page.goto('./');
+  await page.goto(appUrl);
   await startDesign(page);
 
   await expect(page.locator('.brand')).toHaveAttribute('aria-label', 'BASIScad');
@@ -29,7 +29,7 @@ test('loads the workplane and the available shape library', async ({ page }) => 
 });
 
 test('places and removes a library piece', async ({ page }) => {
-  await page.goto('./');
+  await page.goto(appUrl);
   await startDesign(page);
 
   const girder = page.getByRole('listitem').filter({ hasText: '1x6 Girder' });
@@ -48,7 +48,7 @@ test('places and removes a library piece', async ({ page }) => {
 test('hole snapping can be toggled and Alt is documented as the free-move modifier', async ({
   page,
 }) => {
-  await page.goto('./');
+  await page.goto(appUrl);
   await startDesign(page);
   const snapToggle = page.getByRole('checkbox', { name: 'Snap holes' });
   await expect(snapToggle).toBeChecked();
@@ -59,7 +59,7 @@ test('hole snapping can be toggled and Alt is documented as the free-move modifi
 });
 
 test('rotates a piece from the X handle and updates the live angle', async ({ page }) => {
-  await page.goto('./');
+  await page.goto(appUrl);
   await startDesign(page);
   const girder = page.getByRole('listitem').filter({ hasText: '1x6 Girder' });
   await girder.getByRole('button', { name: 'Place' }).click();
@@ -118,7 +118,7 @@ test('rotates a piece from the X handle and updates the live angle', async ({ pa
 test('undo and redo restore a placed piece with buttons and keyboard shortcuts', async ({
   page,
 }) => {
-  await page.goto('./');
+  await page.goto(appUrl);
   await startDesign(page, 'History Test');
   const girder = page.getByRole('listitem').filter({ hasText: '1x6 Girder' });
   await girder.getByRole('button', { name: 'Place' }).click();
@@ -140,7 +140,7 @@ test('undo and redo restore a placed piece with buttons and keyboard shortcuts',
 });
 
 test('saves and reopens a named design on this device', async ({ page }) => {
-  await page.goto('./');
+  await page.goto(appUrl);
   await startDesign(page, 'Saved Bridge');
   await page
     .getByRole('listitem')
@@ -158,7 +158,7 @@ test('saves and reopens a named design on this device', async ({ page }) => {
 });
 
 test('offers recovery after refresh and preserves the design name', async ({ page }) => {
-  await page.goto('./');
+  await page.goto(appUrl);
   await startDesign(page, 'Recovered Tower');
   await page
     .getByRole('listitem')
@@ -181,7 +181,7 @@ test('offers recovery after refresh and preserves the design name', async ({ pag
 });
 
 test('asks before deleting a saved copy and keeps the open design', async ({ page }) => {
-  await page.goto('./');
+  await page.goto(appUrl);
   await startDesign(page, 'Keep Open');
   await page.getByRole('button', { name: 'Menu' }).click();
   await page.getByRole('menuitem', { name: 'Save Design' }).click();
@@ -195,7 +195,7 @@ test('asks before deleting a saved copy and keeps the open design', async ({ pag
 });
 
 test('canceling New keeps the open design and its name can be changed', async ({ page }) => {
-  await page.goto('./');
+  await page.goto(appUrl);
   await startDesign(page, 'Current Design');
   await page
     .getByRole('listitem')
@@ -220,7 +220,7 @@ test('canceling New keeps the open design and its name can be changed', async ({
 });
 
 test('centres the whole project as one undoable edit', async ({ page }) => {
-  await page.goto('./');
+  await page.goto(appUrl);
   await startDesign(page, 'Center Test');
   const girder = page.getByRole('listitem').filter({ hasText: '1x6 Girder' });
   await girder.getByRole('button', { name: 'Place' }).click();

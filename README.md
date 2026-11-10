@@ -75,6 +75,20 @@ npm run test:watch     # unit tests while editing
 To use installed Google Chrome, run `PLAYWRIGHT_CHANNEL=chrome npm run validate`.
 Run browser tests from a terminal that permits browser processes to launch;
 restricted agent environments may block both Chromium and Chrome. CI uses bundled Chromium on Linux.
+For local tests in an agent sandbox, use an installed and paired
+[browse](https://www.npmjs.com/package/@opencode/browse) extension in an open Chrome profile:
+
+```sh
+npm run test:e2e:local
+npm run test:e2e:local -- --grep 'snaps within 2 mm'
+```
+
+This runs the same Playwright suite through the local browser relay, with one worker,
+a temporary loopback origin, and a fresh tab for each test. It resets storage only for
+that test origin. Background frame captures keep Chrome's animation frames progressing.
+The launcher uses `~/.browse/bin/browse` when installed there; set `BROWSE_BIN` for another
+installation. This mode needs no change to the agent's sandbox permissions.
+
 Browser failures save screenshots and traces in `test-results/` and an HTML report in
 `playwright-report/`; open the report with `npx playwright show-report`.
 Vendored geometry inputs and generated output are excluded from formatting.
