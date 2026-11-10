@@ -5,6 +5,7 @@ import { parseLibraryHoles } from '../src/app/libraryHoles';
 import { parsePieceGeometry } from '../src/three/loadPieceFile';
 import { registerGeometry } from '../src/three/libraryGeometry';
 import { fastenStack } from '../src/three/fastening';
+import { swingPiece } from '../src/three/assemblyEdits';
 import { canonicalAxis, designHoles, worldHole } from '../src/three/connectionHoles';
 
 /** Real library stock and screws, positioned to exercise a 90 degree hinge connection. */
@@ -48,4 +49,23 @@ export function hingeDesign(): readonly PlacedPiece[] {
     'target-unit',
   )!;
   return [...a, ...b.map((entry) => ({ ...entry, locked: true }))];
+}
+
+export function jointLibrary() {
+  const id = 'girder-1x6';
+  const spec = SPEC_PIECES.find((piece) => piece.id === id)!;
+  const catalog = parseLibraryHoles(
+    JSON.parse(readFileSync(new URL('../public/library/holes.json', import.meta.url), 'utf8')),
+  );
+  return new Map([[id, { ...spec, geometryId: id, holes: catalog[id] }]]);
+}
+
+export function jointDesign(fixed = false, cross = false): readonly PlacedPiece[] {
+  const initial = hingeDesign().filter((piece) => ['base', 'arm', 'pivot'].includes(piece.id));
+  const library = jointLibrary();
+  return fixed
+    ? fastenStack(initial, library, { pieceId: 'base', holeIndex: 1 }, 'second')!
+    : cross
+      ? swingPiece(initial, 'arm', 90, library)
+      : initial;
 }

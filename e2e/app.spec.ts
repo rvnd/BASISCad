@@ -35,14 +35,12 @@ test('places and removes a library piece', async ({ page }) => {
   const girder = page.getByRole('listitem').filter({ hasText: '1x6 Girder' });
   await girder.getByRole('button', { name: 'Place' }).click();
 
-  const selection = page.getByRole('region', { name: 'Selection' });
+  const selection = page.getByRole('region', { name: 'Move and rotate' });
   await expect(selection.getByText('1x6 Girder')).toBeVisible();
-  const removeButton = selection.getByRole('button', { name: '🗑 Remove from design' });
+  const removeButton = page.getByRole('button', { name: '🗑 Remove from design' });
   await expect(removeButton).toBeEnabled();
   await removeButton.click();
-  await expect(
-    selection.getByText('Nothing selected. Click a placed piece to select it.'),
-  ).toBeVisible();
+  await expect(selection).toHaveCount(0);
 });
 
 test('hole snapping can be toggled and Alt is documented as the free-move modifier', async ({
@@ -123,18 +121,14 @@ test('undo and redo restore a placed piece with buttons and keyboard shortcuts',
   const girder = page.getByRole('listitem').filter({ hasText: '1x6 Girder' });
   await girder.getByRole('button', { name: 'Place' }).click();
 
-  const selection = page.getByRole('region', { name: 'Selection' });
+  const selection = page.getByRole('region', { name: 'Move and rotate' });
   await expect(selection.getByText('1x6 Girder')).toBeVisible();
   await page.getByRole('button', { name: 'Undo' }).click();
-  await expect(
-    selection.getByText('Nothing selected. Click a placed piece to select it.'),
-  ).toBeVisible();
+  await expect(selection).toHaveCount(0);
   await page.keyboard.press('Control+Shift+z');
   await expect(selection.getByText('1x6 Girder')).toBeVisible();
   await page.keyboard.press('Control+z');
-  await expect(
-    selection.getByText('Nothing selected. Click a placed piece to select it.'),
-  ).toBeVisible();
+  await expect(selection).toHaveCount(0);
   await page.getByRole('button', { name: 'Redo' }).click();
   await expect(selection.getByText('1x6 Girder')).toBeVisible();
 });
@@ -209,7 +203,7 @@ test('canceling New keeps the open design and its name can be changed', async ({
   await newDialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('button', { name: 'Rename design Current Design' })).toBeVisible();
   await expect(
-    page.getByRole('region', { name: 'Selection' }).getByText('1x6 Girder'),
+    page.getByRole('region', { name: 'Move and rotate' }).getByText('1x6 Girder'),
   ).toBeVisible();
 
   await page.getByRole('button', { name: 'Rename design Current Design' }).click();

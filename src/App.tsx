@@ -2,6 +2,16 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import AngleBadge from './components/AngleBadge.tsx';
 import Header from './components/Header.tsx';
 import ConnectControls from './components/ConnectControls';
+import AssemblyControls from './components/AssemblyControls';
+import { createGroup, ungroup, toggleLock, selectPiece, motionIds } from './app/groups';
+import {
+  moveAssembly,
+  rotateAssembly,
+  selectionPose,
+  hingeInfo,
+  swingPiece,
+} from './three/assemblyEdits';
+import { fastenersAtPiece } from './app/connections';
 import HolePicker from './components/HolePicker';
 import ProjectDialog from './components/ProjectDialog.tsx';
 import type { ProjectDialogMode } from './components/ProjectDialog.tsx';
@@ -19,17 +29,7 @@ import type { HoleTarget } from './three/connectionHoles';
 import { connectPieces, DEFAULT_CONNECTION_OPTIONS } from './three/connectPieces';
 import { alignedFastenerTargets, fastenStack } from './three/fastening';
 import { sameHole } from './app/connections';
-import {
-  addPiecesRotation,
-  centerDesign,
-  createPlacedPiece,
-  flipPiecesRotation,
-  removePlaced,
-  resetPiecesRotation,
-  setPiecesPosition,
-  setPiecesRotation,
-  toggleSelection,
-} from './app/design';
+import { centerDesign, createPlacedPiece, removePlaced, setPiecesPosition } from './app/design';
 import type { PositionMm, SelectionMode } from './app/design';
 import { canRedo, canUndo, createDesignHistory, reduceDesignHistory } from './app/designHistory';
 import {
@@ -146,6 +146,7 @@ export default function App() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('move');
+  const [hingeMode, setHingeMode] = useState(false);
   const [snapHoles, setSnapHoles] = useState(true);
   const [alignedHoleCount, setAlignedHoleCount] = useState(0);
   const [connecting, setConnecting] = useState(false);
@@ -386,6 +387,10 @@ export default function App() {
   }, [selectionMode, viewportReady]);
 
   useEffect(() => {
+    viewportRef.current?.setHingeEnabled(hingeMode);
+  }, [hingeMode, viewportReady]);
+
+  useEffect(() => {
     viewportRef.current?.setHoleSnappingEnabled(snapHoles);
   }, [snapHoles, viewportReady]);
 
@@ -412,7 +417,7 @@ export default function App() {
       apply: (previous) =>
         constrainDesignEdit(
           previous,
-          centerDesign(previous, sizeById),
+          previous.some((piece) => piece.locked) ? previous : centerDesign(previous, sizeById),
           geometryLookup(libraryByIdRef.current),
         ),
     });
@@ -441,6 +446,7 @@ export default function App() {
     dispatchHistory({ type: 'replace', placed: [] });
     setSelectedIds([]);
     setSelectionMode('move');
+    setHingeMode(false);
     setBadgeAxis(null);
     setDialogMode(null);
     setStartupDialog(false);
@@ -458,6 +464,7 @@ export default function App() {
     dispatchHistory({ type: 'replace', placed: design.placed });
     setSelectedIds([]);
     setSelectionMode('move');
+    setHingeMode(false);
     setBadgeAxis(null);
     setDialogMode(null);
     setStartupDialog(false);
@@ -501,6 +508,7 @@ export default function App() {
     dispatchHistory({ type: 'replace', placed: recoveryDraft.placed });
     setSelectedIds([]);
     setSelectionMode('move');
+    setHingeMode(false);
     setBadgeAxis(null);
     setDialogMode(null);
     setStartupDialog(false);
@@ -541,10 +549,11 @@ export default function App() {
         else dispatchHistory({ type: 'end-edit' });
       },
       onSelectPiece(placedId: string, additive: boolean): void {
-        setSelectedIds((previous) => toggleSelection(previous, placedId, additive));
+        setSelectedIds((previous) => selectPiece(placedRef.current, previous, placedId, additive));
         // Selecting keeps the current mode and the piece's rotation.
       },
       onDeselectAll(): void {
+        setHingeMode(false);
         setSelectedIds([]);
         setBadgeAxis(null);
       },
@@ -553,7 +562,17 @@ export default function App() {
           type: 'edit',
           apply: (previous) => {
             const piece = previous.find((entry) => entry.id === placedId);
-            if (!piece) return previous;
+            if (!piece || piece.locked) return previous;
+            if (motionIds(previous, [placedId]).size > 1) {
+              const pose = selectionPose(previous, [placedId], libraryByIdRef.current)!;
+              return moveAssembly(
+                previous,
+                [placedId],
+                { x, y: pose.position.y, z },
+                libraryByIdRef.current,
+                true,
+              );
+            }
             const moved = dragPiece(
               piece,
               { x, y: y ?? piece.position.y, z },
@@ -567,15 +586,37 @@ export default function App() {
           },
         });
       },
+      canMovePiece(id): boolean {
+        const members = motionIds(placedRef.current, [id]);
+        return !placedRef.current.some((piece) => members.has(piece.id) && piece.locked);
+      },
+      hingeInfo(id) {
+        return hingeInfo(placedRef.current, id, libraryByIdRef.current);
+      },
+      onHingeAngle(id, angle): void {
+        dispatchHistory({
+          type: 'edit',
+          apply: (previous) => {
+            const next = swingPiece(editStartPlacedRef.current, id, angle, libraryByIdRef.current);
+            return next === editStartPlacedRef.current ? previous : next;
+          },
+        });
+      },
       onRotatePiece(placedId: string, axis: RotationAxis, angleDeg: number): void {
         dispatchHistory({
           type: 'edit',
-          apply: (previous) =>
-            constrainDesignEdit(
-              previous,
-              setPiecesRotation(previous, [placedId], axis, angleDeg),
-              geometryLookup(libraryByIdRef.current),
-            ),
+          apply: (previous) => {
+            const before = editStartPlacedRef.current;
+            const pose = selectionPose(before, [placedId], libraryByIdRef.current);
+            if (!pose) return previous;
+            const next = rotateAssembly(
+              before,
+              [placedId],
+              { ...pose.rotation, [axis]: angleDeg },
+              libraryByIdRef.current,
+            );
+            return next === before && angleDeg !== pose.rotation[axis] ? previous : next;
+          },
         });
       },
       onBeginRotate(): void {
@@ -621,6 +662,7 @@ export default function App() {
       });
       setSelectedIds([id]);
       setSelectionMode('move');
+      setHingeMode(false);
     },
     [libraryPieces],
   );
@@ -637,9 +679,17 @@ export default function App() {
         type: 'edit',
         apply: (previous) => {
           const single = previous.find((piece) => piece.id === selectedIds[0]);
-          if (single === undefined) {
+          if (single === undefined || single.locked) {
             return previous;
           }
+          const pose = selectionPose(previous, selectedIds, libraryByIdRef.current);
+          if (pose && motionIds(previous, selectedIds).size > 1)
+            return moveAssembly(
+              previous,
+              selectedIds,
+              { ...pose.position, [axis]: value },
+              libraryByIdRef.current,
+            );
           return constrainDesignEdit(
             previous,
             setPiecesPosition(
@@ -656,94 +706,73 @@ export default function App() {
     [selectedIds, sizeById],
   );
 
-  const rotateStepSelected = useCallback(
-    (axis: RotationAxis, direction: 1 | -1) => {
-      dispatchHistory({
-        type: 'edit',
-        apply: (previous) =>
-          constrainDesignEdit(
-            previous,
-            addPiecesRotation(previous, selectedIds, axis, direction * rotateStep),
-            geometryLookup(libraryByIdRef.current),
-          ),
-      });
-    },
-    [selectedIds, rotateStep],
-  );
-
   const setAngleSelected = useCallback(
-    (axis: RotationAxis, degrees: number) => {
+    (axis: RotationAxis, degrees: number, relative = false) => {
       dispatchHistory({
         type: 'edit',
-        apply: (previous) =>
-          constrainDesignEdit(
-            previous,
-            setPiecesRotation(previous, selectedIds, axis, degrees),
-            geometryLookup(libraryByIdRef.current),
-          ),
+        apply: (previous) => {
+          const pose = selectionPose(previous, selectedIds, libraryByIdRef.current);
+          return pose
+            ? rotateAssembly(
+                previous,
+                selectedIds,
+                { ...pose.rotation, [axis]: relative ? pose.rotation[axis] + degrees : degrees },
+                libraryByIdRef.current,
+              )
+            : previous;
+        },
       });
     },
     [selectedIds],
   );
-
+  const rotateStepSelected = useCallback(
+    (axis: RotationAxis, direction: 1 | -1) => setAngleSelected(axis, direction * rotateStep, true),
+    [setAngleSelected, rotateStep],
+  );
   const flipSelected = useCallback(
-    (axis: RotationAxis) => {
-      dispatchHistory({
-        type: 'edit',
-        apply: (previous) =>
-          constrainDesignEdit(
-            previous,
-            flipPiecesRotation(previous, selectedIds, axis),
-            geometryLookup(libraryByIdRef.current),
-          ),
-      });
-    },
-    [selectedIds],
+    (axis: RotationAxis) => setAngleSelected(axis, 180, true),
+    [setAngleSelected],
   );
-
+  const rotate90Selected = useCallback(
+    (axis: RotationAxis) => setAngleSelected(axis, 90, true),
+    [setAngleSelected],
+  );
   const resetOrientationSelected = useCallback(() => {
     dispatchHistory({
       type: 'edit',
       apply: (previous) =>
-        constrainDesignEdit(
-          previous,
-          resetPiecesRotation(previous, selectedIds),
-          geometryLookup(libraryByIdRef.current),
-        ),
+        rotateAssembly(previous, selectedIds, { x: 0, y: 0, z: 0 }, libraryByIdRef.current),
     });
   }, [selectedIds]);
-
-  const rotate90Selected = useCallback(
-    (axis: RotationAxis) => {
+  const setAngleForPiece = useCallback((id: string, axis: RotationAxis, degrees: number) => {
+    dispatchHistory({
+      type: 'edit',
+      apply: (previous) => {
+        const pose = selectionPose(previous, [id], libraryByIdRef.current);
+        return pose
+          ? rotateAssembly(
+              previous,
+              [id],
+              { ...pose.rotation, [axis]: degrees },
+              libraryByIdRef.current,
+            )
+          : previous;
+      },
+    });
+  }, []);
+  const setHingeAngle = useCallback(
+    (angle: number) => {
+      if (selectedIds.length !== 1) return;
       dispatchHistory({
         type: 'edit',
-        apply: (previous) =>
-          constrainDesignEdit(
-            previous,
-            addPiecesRotation(previous, selectedIds, axis, 90),
-            geometryLookup(libraryByIdRef.current),
-          ),
+        apply: (previous) => swingPiece(previous, selectedIds[0]!, angle, libraryByIdRef.current),
       });
     },
     [selectedIds],
   );
-
-  const setAngleForPiece = useCallback((placedId: string, axis: RotationAxis, degrees: number) => {
-    // The badge types an angle for the dragged piece only — unlike
-    // the panel's typed fields, which apply to the whole selection.
-    dispatchHistory({
-      type: 'edit',
-      apply: (previous) =>
-        constrainDesignEdit(
-          previous,
-          setPiecesRotation(previous, [placedId], axis, degrees),
-          geometryLookup(libraryByIdRef.current),
-        ),
-    });
-  }, []);
-
   const handleSetMode = useCallback((mode: SelectionMode) => {
     setSelectionMode(mode);
+    setHingeMode(false);
     // Leaving Rotate hides the angle badge.
     if (mode !== 'rotate') {
       setBadgeAxis(null);
@@ -775,6 +804,7 @@ export default function App() {
     dispatchHistory({ type: 'edit', apply: () => result.placed });
     setSelectedIds([result.movingId]);
     setSelectionMode('move');
+    setHingeMode(false);
     if (result.extendedFastener) dispatchHistory({ type: 'end-edit' });
     else setPendingScrew(result.hole);
   };
@@ -829,66 +859,98 @@ export default function App() {
     cancelConnection();
   };
 
-  const selectedPieces: readonly { id: string; name: string }[] = selectedIds.flatMap((id) => {
-    const piece = placed.find((entry) => entry.id === id);
-    const libraryPiece =
-      piece === undefined ? undefined : libraryPieces.find((entry) => entry.id === piece.libraryId);
-    return piece?.fastener
-      ? [{ id, name: fastenerName(piece.fastener) }]
-      : libraryPiece === undefined
-        ? []
-        : [{ id, name: libraryPiece.name }];
-  });
-
-  // The single selected piece, with its live position and rotation,
-  // for the Move/Rotate panel; null when several are selected.
+  const selected = placed.filter((piece) => selectedIds.includes(piece.id));
+  const renderLibrary = new Map(libraryPieces.map((piece) => [piece.id, piece]));
+  const pose = selectionPose(placed, selectedIds, renderLibrary);
   const singleSelected: SingleSelection | null =
-    selectedIds.length === 1
-      ? (() => {
-          const piece = placed.find((entry) => entry.id === selectedIds[0]);
-          const libraryPiece =
-            piece === undefined
-              ? undefined
-              : libraryPieces.find((entry) => entry.id === piece.libraryId);
-          if (piece === undefined || (!piece.fastener && libraryPiece === undefined)) {
-            return null;
-          }
-          return {
-            id: piece.id,
-            name: piece.fastener ? fastenerName(piece.fastener) : libraryPiece!.name,
-            position: piece.position,
-            rotation: piece.rotation,
-          };
-        })()
+    selected.length && (selected.length === 1 || pose?.groupId) && pose
+      ? {
+          id: selected[0]!.id,
+          name: pose.groupId
+            ? `Group · ${selected.length} items`
+            : selected[0]!.fastener
+              ? fastenerName(selected[0]!.fastener!)
+              : (libraryPieces.find((piece) => piece.id === selected[0]!.libraryId)?.name ??
+                'Piece'),
+          position: pose.position,
+          rotation: pose.rotation,
+          locked: placed.some(
+            (piece) => motionIds(placed, selectedIds).has(piece.id) && piece.locked,
+          ),
+          hinge:
+            selected.length === 1 &&
+            !selected[0]!.fastener &&
+            fastenersAtPiece(placed, selected[0]!.id).length > 0
+              ? {
+                  angle: selected[0]!.hingeAngleDeg ?? 0,
+                  available: hingeInfo(placed, selected[0]!.id, renderLibrary) !== null,
+                }
+              : undefined,
+        }
       : null;
 
   return (
     <div className="app">
       <Header
         tools={
-          <ConnectControls
-            active={connecting}
-            disabled={placed.filter((piece) => !piece.fastener).length < 2 || pendingScrew !== null}
-            options={connectionOptions}
-            canRetry={retryHoles !== null && pendingScrew === null}
-            onOptions={setConnectionOptions}
-            onToggle={() => {
-              cancelConnection();
-              setConnectionNotice(null);
-              setConnecting(!connecting);
-            }}
-            onRetry={(bestFit) => {
-              const options = bestFit
-                ? { eitherSide: true, moreAngles: true, moveAssembly: true }
-                : connectionOptions;
-              setConnectionOptions(options);
-              if (retryHoles) attemptConnection(retryHoles.first, retryHoles.second, options);
-              else {
+          <div className="header-tools">
+            <AssemblyControls
+              canGroup={selected.length >= 2 && !pose?.groupId}
+              canUngroup={selected.some((piece) => piece.groupId)}
+              canLock={selected.length > 0}
+              locked={selected.length > 0 && selected.every((piece) => piece.locked)}
+              onGroup={() => {
+                const groupId = `group-${createDesignId()}`;
+                const next = createGroup(placed, selectedIds, groupId);
                 cancelConnection();
-                setConnecting(true);
+                setHingeMode(false);
+                dispatchHistory({ type: 'edit', apply: () => next });
+                setSelectedIds(
+                  next.filter((piece) => piece.groupId === groupId).map((piece) => piece.id),
+                );
+              }}
+              onUngroup={() => {
+                cancelConnection();
+                setHingeMode(false);
+                dispatchHistory({
+                  type: 'edit',
+                  apply: (previous) => ungroup(previous, selectedIds),
+                });
+              }}
+              onLock={() => {
+                cancelConnection();
+                dispatchHistory({
+                  type: 'edit',
+                  apply: (previous) => toggleLock(previous, selectedIds),
+                });
+              }}
+            />
+            <ConnectControls
+              active={connecting}
+              disabled={
+                placed.filter((piece) => !piece.fastener).length < 2 || pendingScrew !== null
               }
-            }}
-          />
+              options={connectionOptions}
+              canRetry={retryHoles !== null && pendingScrew === null}
+              onOptions={setConnectionOptions}
+              onToggle={() => {
+                cancelConnection();
+                setConnectionNotice(null);
+                setConnecting(!connecting);
+              }}
+              onRetry={(bestFit) => {
+                const options = bestFit
+                  ? { eitherSide: true, moreAngles: true, moveAssembly: true }
+                  : connectionOptions;
+                setConnectionOptions(options);
+                if (retryHoles) attemptConnection(retryHoles.first, retryHoles.second, options);
+                else {
+                  cancelConnection();
+                  setConnecting(true);
+                }
+              }}
+            />
+          </div>
         }
         designName={activeDesign.name || 'Name this design'}
         canUndo={canUndo(history)}
@@ -914,10 +976,9 @@ export default function App() {
           onZoomOut={() => viewportRef.current?.zoomOut()}
           onFit={fit}
           disabled={!viewportReady}
-          selectedPieces={selectedPieces}
-          selectionMode={selectionMode}
+          selectedCount={selected.length}
           onRemoveSelected={removeSelected}
-          hasPieces={placed.length > 0}
+          hasPieces={placed.length > 0 && !placed.some((piece) => piece.locked)}
           onCenterProject={centerProject}
           snapHoles={snapHoles}
           alignedHoleCount={alignedHoleCount}
@@ -962,7 +1023,7 @@ export default function App() {
             <MoveRotatePanel
               key={singleSelected?.id ?? `multi-${selectedIds.length}`}
               single={singleSelected}
-              selectedCount={selectedIds.length}
+              selectedCount={selected.length}
               mode={selectionMode}
               step={rotateStep}
               hoverAxis={handleHover}
@@ -974,12 +1035,19 @@ export default function App() {
               onSetAngle={setAngleSelected}
               onFlip={flipSelected}
               onResetOrientation={resetOrientationSelected}
+              hingeMode={hingeMode}
+              onHingeMode={() => {
+                setHingeMode(true);
+                setBadgeAxis(null);
+              }}
+              onHingeAngle={setHingeAngle}
             />
           )}
           {!connecting &&
             !fastening &&
             badgeAxis !== null &&
             selectionMode === 'rotate' &&
+            !hingeMode &&
             selectedIds.includes(badgeAxis.placedId) &&
             (() => {
               const piece = placed.find((entry) => entry.id === badgeAxis.placedId);
@@ -989,7 +1057,7 @@ export default function App() {
               return (
                 <AngleBadge
                   axis={badgeAxis.axis}
-                  angle={piece.rotation[badgeAxis.axis]}
+                  angle={(piece.groupRotation ?? piece.rotation)[badgeAxis.axis]}
                   onSetAngle={(axis, degrees) => {
                     setAngleForPiece(badgeAxis.placedId, axis, degrees);
                   }}

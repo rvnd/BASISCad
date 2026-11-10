@@ -1,6 +1,5 @@
 import CameraViewsDropdown from './CameraViewsDropdown';
 import type { CameraViewId } from '../three/cameraViews';
-import type { SelectionMode } from '../app/design';
 
 /**
  * The left column: view and zoom controls for the workplane, plus the
@@ -22,9 +21,8 @@ interface ViewControlsProps {
   /** True once the 3D viewport exists, so the buttons can actually act. */
   disabled: boolean;
   /** Selected placed pieces, in selection order. */
-  selectedPieces: readonly { id: string; name: string }[];
+  selectedCount: number;
   /** What the selection is doing — Move drags pieces, Rotate turns them. */
-  selectionMode: SelectionMode;
   /** Remove the selected pieces from the design (not from the library). */
   onRemoveSelected: () => void;
   hasPieces: boolean;
@@ -44,8 +42,7 @@ export default function ViewControls({
   onZoomOut,
   onFit,
   disabled,
-  selectedPieces,
-  selectionMode,
+  selectedCount,
   onRemoveSelected,
   hasPieces,
   onCenterProject,
@@ -110,24 +107,7 @@ export default function ViewControls({
         />
       </section>
       <p className="column-hint">Drag the workplane to orbit. Scroll to zoom.</p>
-      <section className="panel" aria-label="Selection">
-        <h2 className="panel-title">Selection</h2>
-        {selectedPieces.length === 0 ? (
-          <p className="panel-note">Nothing selected. Click a placed piece to select it.</p>
-        ) : (
-          <>
-            <ul className="selection-list">
-              {selectedPieces.map((piece) => (
-                <li key={piece.id}>{piece.name}</li>
-              ))}
-            </ul>
-            <p className="panel-note">
-              {selectionMode === 'move'
-                ? 'Mode: Move — drag the piece to move it. Its rotation is kept.'
-                : 'Mode: Rotate — drag the piece to turn it, or drag a coloured ring around it.'}
-            </p>
-          </>
-        )}
+      <div className="selection-actions">
         <button
           type="button"
           className="control-button"
@@ -142,9 +122,9 @@ export default function ViewControls({
         <button
           type="button"
           className="control-button trash-button"
-          disabled={selectedPieces.length === 0}
+          disabled={selectedCount === 0}
           title={
-            selectedPieces.length === 0
+            selectedCount === 0
               ? 'Select a placed piece first'
               : 'Remove the selected piece from the design (the library keeps it)'
           }
@@ -152,7 +132,7 @@ export default function ViewControls({
         >
           🗑 Remove from design
         </button>
-      </section>
+      </div>
     </aside>
   );
 }

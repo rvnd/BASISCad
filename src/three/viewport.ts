@@ -26,6 +26,7 @@ import type { RotationAxis } from './rotationHandles';
  */
 
 export interface ViewportHandle {
+  setHingeEnabled(enabled: boolean): void;
   setHoleMarkersEnabled(enabled: boolean, spacingPx?: number): void;
   cameraPosition(): PositionMm;
   dispose(): void;
@@ -57,6 +58,9 @@ export interface ViewportHandle {
  * instead of jumping so its centre is under the cursor.
  */
 export interface ViewportDesignCallbacks {
+  canMovePiece?(id: string): boolean;
+  hingeInfo?(id: string): { pivot: PositionMm; axis: PositionMm; angle: number } | null;
+  onHingeAngle?(id: string, angle: number): void;
   onHoleTargets?(targets: readonly HoleTarget[]): void;
   onAlignmentChange?(count: number): void;
   onBeginEdit(): void;
@@ -167,6 +171,7 @@ export function createViewport(
   const ROTATE_DRAG_DEGREES_PER_PX = 0.5;
   let selectionMode: SelectionMode = 'move';
   let holeSnappingEnabled = true;
+  let hingeEnabled = false;
   let holePicking = false;
   let markerSpacingPx = 15;
   let holesDirty = true;
@@ -178,6 +183,17 @@ export function createViewport(
   let hoveredHandle: RotationAxis | null = null;
   let downAt: { x: number; y: number } | null = null;
   type Gesture =
+    | { kind: 'select'; placedId: string }
+    | {
+        kind: 'hinge';
+        placedId: string;
+        pivot: THREE.Vector3;
+        axis: THREE.Vector3;
+        startRadial: THREE.Vector3;
+        startAngle: number;
+        lastAngle: number;
+        totalDelta: number;
+      }
     | { kind: 'move'; placedId: string; grabOffset: { x: number; z: number } }
     | {
         kind: 'handle';
@@ -247,7 +263,8 @@ export function createViewport(
       if (gesture.kind === 'handle' && designCallbacks !== undefined) {
         designCallbacks.onHandleDrag(null, null);
       }
-      designCallbacks?.onEndEdit(holeSnappingEnabled && !event.altKey);
+      if (gesture.kind !== 'select')
+        designCallbacks?.onEndEdit(holeSnappingEnabled && !event.altKey);
       gesture = null;
     } else if (downAt !== null && !moved && designCallbacks !== undefined) {
       designCallbacks.onDeselectAll();
@@ -300,6 +317,40 @@ export function createViewport(
     if (hit === null) {
       return;
     }
+    if (hingeEnabled || designCallbacks.canMovePiece?.(hit) === false) {
+      const info = hingeEnabled ? designCallbacks.hingeInfo?.(hit) : null;
+      gesture = { kind: 'select', placedId: hit };
+      if (info) {
+        const pivot = new THREE.Vector3(info.pivot.x, info.pivot.y, info.pivot.z);
+        const axis = new THREE.Vector3(info.axis.x, info.axis.y, info.axis.z);
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
+        const point = ray.ray.intersectPlane(
+          new THREE.Plane().setFromNormalAndCoplanarPoint(axis, pivot),
+          new THREE.Vector3(),
+        );
+        if (point && point.distanceTo(pivot) > 1e-6) {
+          designCallbacks.onBeginEdit();
+          gesture = {
+            kind: 'hinge',
+            placedId: hit,
+            pivot,
+            axis,
+            startRadial: point.sub(pivot).normalize(),
+            startAngle: info.angle,
+            lastAngle: 0,
+            totalDelta: 0,
+          };
+        }
+      }
+      controls.enabled = false;
+      try {
+        renderer.domElement.setPointerCapture(event.pointerId);
+      } catch {
+        /* Best effort. */
+      }
+      return;
+    }
     if (selectionMode === 'rotate') {
       const rotation: RotationDeg | null = designScene.rotationOf(hit);
       designCallbacks.onBeginEdit();
@@ -348,6 +399,28 @@ export function createViewport(
       return;
     }
     if (!moved || designCallbacks === undefined) {
+      return;
+    }
+    if (gesture.kind === 'select') return;
+    if (gesture.kind === 'hinge') {
+      const ray = new THREE.Raycaster();
+      const ndc = eventToNdc(event, renderer.domElement);
+      ray.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
+      const point = ray.ray.intersectPlane(
+        new THREE.Plane().setFromNormalAndCoplanarPoint(gesture.axis, gesture.pivot),
+        new THREE.Vector3(),
+      );
+      if (!point) return;
+      const radial = point.sub(gesture.pivot).normalize();
+      const angle = THREE.MathUtils.radToDeg(
+        Math.atan2(
+          gesture.axis.dot(gesture.startRadial.clone().cross(radial)),
+          gesture.startRadial.dot(radial),
+        ),
+      );
+      gesture.totalDelta += unwrapAngleDelta(gesture.lastAngle, angle);
+      gesture.lastAngle = angle;
+      designCallbacks.onHingeAngle?.(gesture.placedId, gesture.startAngle + gesture.totalDelta);
       return;
     }
     if (gesture.kind === 'handle') {
@@ -409,7 +482,7 @@ export function createViewport(
       if (gesture.kind === 'handle') {
         designCallbacks?.onHandleDrag(null, null);
       }
-      designCallbacks?.onEndEdit(false);
+      if (gesture.kind !== 'select') designCallbacks?.onEndEdit(false);
     }
     gesture = null;
     downAt = null;
@@ -490,11 +563,15 @@ export function createViewport(
   };
 
   return {
+    setHingeEnabled(enabled): void {
+      hingeEnabled = enabled;
+      designScene.setHandlesEnabled(!holePicking && !hingeEnabled && selectionMode === 'rotate');
+    },
     setHoleMarkersEnabled(enabled, spacingPx = 15): void {
       markerSpacingPx = spacingPx;
       holePicking = enabled;
       holesDirty = true;
-      designScene.setHandlesEnabled(!enabled && selectionMode === 'rotate');
+      designScene.setHandlesEnabled(!enabled && !hingeEnabled && selectionMode === 'rotate');
       if (!enabled) designCallbacks?.onHoleTargets?.([]);
     },
     cameraPosition(): PositionMm {
@@ -527,7 +604,7 @@ export function createViewport(
       // would silently rotate a piece the user was trying to move.
       // setHandlesEnabled re-evaluates from the last sync, so the
       // handles appear the moment Rotate mode is entered.
-      designScene.setHandlesEnabled(!holePicking && mode === 'rotate');
+      designScene.setHandlesEnabled(!holePicking && !hingeEnabled && mode === 'rotate');
     },
     setHoleSnappingEnabled(enabled: boolean): void {
       holeSnappingEnabled = enabled;

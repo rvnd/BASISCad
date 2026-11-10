@@ -1044,3 +1044,47 @@ body {
   pointer-events: none;
   z-index: 1;
 }
+
+.header-tools,
+.assembly-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.assembly-tool {
+  width: 32px;
+  height: 32px;
+  padding: 5px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: white;
+  background: #222;
+  cursor: pointer;
+}
+.assembly-tool svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.assembly-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.assembly-tool:not(:disabled):hover {
+  background: #444;
+}
+.selection-actions {
+  display: grid;
+  gap: 8px;
+}
+.pose-controls {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}

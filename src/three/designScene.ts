@@ -5,6 +5,8 @@ import { getGeometry } from './libraryGeometry';
 import { alignedHoleMarkers, snapToWorldHole, worldHolesForPiece } from './orientedHoles';
 import type { WorldHole } from './orientedHoles';
 import { rotationLift } from './pieceTransforms';
+import { assemblyBounds } from './assemblyEdits';
+import { groupSelection, motionIds } from '../app/groups';
 import { fastenerGeometry } from './fastenerGeometry';
 import { projectHoleTargets } from './connectionHoles';
 import type { HoleTarget } from './connectionHoles';
@@ -228,7 +230,26 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
     protractorRadius = 0;
     handlePlacedId = null;
     const libraryById = new Map(lastLibrary.map((piece) => [piece.id, piece]));
-    if (handlesEnabled && lastSelectedIds.length === 1) {
+    const selected = lastPlaced.filter((piece) => lastSelectedIds.includes(piece.id));
+    const selectedGroup = selected[0]?.groupId;
+    const sameGroup = selectedGroup && selected.every((piece) => piece.groupId === selectedGroup);
+    const movable = !lastPlaced.some(
+      (piece) => motionIds(lastPlaced, lastSelectedIds).has(piece.id) && piece.locked,
+    );
+    if (handlesEnabled && movable && sameGroup) {
+      const box = assemblyBounds(
+        lastPlaced,
+        groupSelection(lastPlaced, lastSelectedIds),
+        libraryById,
+      );
+      if (!box.isEmpty()) {
+        handleCentre = box.getCenter(new THREE.Vector3());
+        const radius = box.getSize(new THREE.Vector3()).length() / 2;
+        handleRadius = rotationHandleRadius(radius);
+        protractorRadius = radius + 14;
+        handlePlacedId = selected[0]!.id;
+      }
+    } else if (handlesEnabled && movable && lastSelectedIds.length === 1) {
       const selectedId = lastSelectedIds[0];
       const selectedPlaced = lastPlaced.find((piece) => piece.id === selectedId);
       const selectedObject = selectedId === undefined ? undefined : byId.get(selectedId);
@@ -369,7 +390,9 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
 
     snapPosition(placedId: string, x: number, z: number): HoleSnapResult {
       const piece = lastPlaced.find((entry) => entry.id === placedId);
-      return piece ? snapToWorldHole(piece, { x, z }, worldHoles) : { x, z, snapped: false };
+      return piece && motionIds(lastPlaced, [placedId]).size === 1
+        ? snapToWorldHole(piece, { x, z }, worldHoles)
+        : { x, z, snapped: false };
     },
 
     alignedHoleCount(): number {
@@ -399,6 +422,16 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       if (object === undefined) {
         return null;
       }
+      const piece = lastPlaced.find((entry) => entry.id === placedId);
+      if (piece?.groupId) {
+        const box = assemblyBounds(
+          lastPlaced,
+          groupSelection(lastPlaced, [placedId]),
+          new Map(lastLibrary.map((entry) => [entry.id, entry])),
+        );
+        const center = box.getCenter(new THREE.Vector3());
+        return { x: center.x, z: center.z };
+      }
       return { x: object.position.x, z: object.position.z };
     },
 
@@ -407,6 +440,8 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
       if (object === undefined) {
         return null;
       }
+      const piece = lastPlaced.find((entry) => entry.id === placedId);
+      if (piece?.groupId) return piece.groupRotation ?? { x: 0, y: 0, z: 0 };
       return {
         x: THREE.MathUtils.radToDeg(object.rotation.x),
         y: THREE.MathUtils.radToDeg(object.rotation.y),

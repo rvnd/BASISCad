@@ -109,7 +109,7 @@ test('asks once after alignment, adds adjacent pairs with + targets, and deletes
   await page.mouse.click(head.x, head.y);
   await expect(
     page
-      .getByRole('region', { name: 'Selection' })
+      .getByRole('region', { name: 'Move and rotate' })
       .getByText('#6-32 screw + nut · 3/8 in', { exact: true }),
   ).toBeVisible();
   await page.getByRole('button', { name: '🗑 Remove from design', exact: true }).click();
@@ -132,7 +132,7 @@ test('asks once after alignment, adds adjacent pairs with + targets, and deletes
   await page.mouse.click(nut.x, nut.y);
   await expect(
     page
-      .getByRole('region', { name: 'Selection' })
+      .getByRole('region', { name: 'Move and rotate' })
       .getByText('#6-32 screw + nut · 3/8 in', { exact: true }),
   ).toBeVisible();
   await testInfo.attach('selected-nut', {

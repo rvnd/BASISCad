@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { createGroup, toggleLock } from '../app/groups';
 import { createPlacedPiece } from '../app/design';
 import type { LibraryPiece } from '../app/library';
 import { createDesignScene } from './designScene';
@@ -145,6 +146,41 @@ describe('designScene', () => {
     expect(scene.getObjectByName('rotation-handles')?.visible).toBe(false);
     design.sync(placed, library, []);
     expect(scene.getObjectByName('rotation-handles')?.visible).toBe(false);
+    design.dispose();
+  });
+
+  it('centres grouped handles on all members, picks their axes, and hides them when locked', () => {
+    const scene = new THREE.Scene(),
+      design = createDesignScene(scene);
+    registerGeometry('group-handles', testBox(50, 3, 12));
+    const library = [libraryPiece('stock', 'group-handles')];
+    const placed = createGroup(
+      [
+        { ...createPlacedPiece('a', 'stock', 0, small), position: { x: -40, y: 0, z: 0 } },
+        { ...createPlacedPiece('b', 'stock', 0, small), position: { x: 40, y: 0, z: 0 } },
+      ],
+      ['a', 'b'],
+      'g',
+    );
+    design.sync(placed, library, ['a', 'b']);
+    design.setHandlesEnabled(true);
+    const handles = scene.getObjectByName('rotation-handles')!;
+    expect(handles.visible).toBe(true);
+    expect(handles.position.x).toBeCloseTo(0);
+    expect(handles.position.y).toBeCloseTo(1.5);
+    const camera = new THREE.PerspectiveCamera(45, 1, 1, 2000);
+    camera.position.set(200, 250, 200);
+    camera.lookAt(handles.position);
+    camera.updateMatrixWorld();
+    scene.updateMatrixWorld(true);
+    for (const axis of ['x', 'y', 'z'] as const) {
+      const knob = scene.getObjectByName(`rotation-handle-knob-${axis}`)!;
+      const point = knob.getWorldPosition(new THREE.Vector3()).project(camera);
+      expect(design.handleHit(point.x, point.y, camera)?.axis).toBe(axis);
+    }
+    expect(design.positionOf('a')).toEqual({ x: 0, z: 0 });
+    design.sync(toggleLock(placed, ['b']), library, ['a', 'b']);
+    expect(handles.visible).toBe(false);
     design.dispose();
   });
 

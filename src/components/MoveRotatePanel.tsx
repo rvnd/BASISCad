@@ -111,6 +111,8 @@ export interface SingleSelection {
   name: string;
   position: PositionMm;
   rotation: RotationDeg;
+  locked: boolean;
+  hinge?: { angle: number; available: boolean };
 }
 
 interface MoveRotatePanelProps {
@@ -130,6 +132,9 @@ interface MoveRotatePanelProps {
   onSetAngle: (axis: Axis, degrees: number) => void;
   onFlip: (axis: Axis) => void;
   onResetOrientation: () => void;
+  hingeMode: boolean;
+  onHingeMode: () => void;
+  onHingeAngle: (angle: number) => void;
 }
 
 export default function MoveRotatePanel({
@@ -146,6 +151,9 @@ export default function MoveRotatePanel({
   onSetAngle,
   onFlip,
   onResetOrientation,
+  hingeMode,
+  onHingeMode,
+  onHingeAngle,
 }: MoveRotatePanelProps) {
   if (selectedCount === 0) {
     return null;
@@ -159,7 +167,7 @@ export default function MoveRotatePanel({
         <button
           type="button"
           className="segmented-button"
-          aria-pressed={mode === 'move'}
+          aria-pressed={!hingeMode && mode === 'move'}
           onClick={() => {
             onSetMode('move');
           }}
@@ -169,153 +177,193 @@ export default function MoveRotatePanel({
         <button
           type="button"
           className="segmented-button"
-          aria-pressed={mode === 'rotate'}
+          aria-pressed={!hingeMode && mode === 'rotate'}
           onClick={() => {
             onSetMode('rotate');
           }}
         >
           Rotate
         </button>
+        {single?.hinge && (
+          <button
+            type="button"
+            className="segmented-button"
+            aria-pressed={hingeMode}
+            disabled={!single.hinge.available}
+            onClick={onHingeMode}
+          >
+            Swing / Hinge
+          </button>
+        )}
       </div>
-      <p className="panel-note">
-        {mode === 'move'
-          ? 'Drag the piece to move it, or type exact coordinates below. Switch to Rotate to show the rotation handles.'
-          : 'Drag a curved arrow handle to turn about that axis — inside the circle it snaps to 22.5°, outside it turns freely in 1° steps, hold Shift for 45° steps. Or drag the piece itself to turn it about Y (up).'}
-      </p>
-      {hoverAxis !== null && (
-        <p
-          className="handle-hover-note"
-          style={{ color: HANDLE_AXIS_HEX[hoverAxis] }}
-          aria-live="polite"
-        >
-          Drag to rotate about {hoverAxis.toUpperCase()} — grab the{' '}
-          {HANDLE_AXIS_COLOUR_NAMES[hoverAxis]} curved arrow.
-        </p>
+      {single?.locked && (
+        <p className="panel-note">Locked. Unlock the selection to move or rotate it.</p>
       )}
-      <p className="handle-legend">
-        <span style={{ color: HANDLE_AXIS_HEX.x }}>● Red = X</span>
-        {', '}
-        <span style={{ color: HANDLE_AXIS_HEX.y }}>● Green = Y</span>
-        {', '}
-        <span style={{ color: HANDLE_AXIS_HEX.z }}>● Blue = Z</span>
-        {' — drag a curved arrow handle, or use the buttons.'}
-      </p>
-
-      <h3 className="move-rotate-heading">Move</h3>
-      {single === null ? (
-        <p className="panel-note">Select a single piece to type exact coordinates.</p>
-      ) : (
-        <div className="field-row">
-          {AXES.map((axis) => (
-            <NumberField
-              key={axis}
-              label={axis === 'y' ? 'Y · height' : axis.toUpperCase()}
-              value={single.position[axis]}
-              unit="mm"
-              disabled={false}
-              accentHex={HANDLE_AXIS_HEX[axis]}
-              parse={parsePositionInput}
-              onCommit={(value) => {
-                onMove(axis, value);
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      <h3 className="move-rotate-heading">Rotate</h3>
-      {single === null ? (
+      {single?.hinge && !single.hinge.available && !single.locked && (
         <p className="panel-note">
-          Select a single piece to type exact angles. The step, flip, and reset buttons below apply
-          to every selected piece.
+          This joint is fixed. Ungroup or remove a second screw to swing it.
         </p>
-      ) : (
-        <div className="field-row">
-          {AXES.map((axis) => (
-            <NumberField
-              key={axis}
-              label={`${axis.toUpperCase()} angle`}
-              value={single.rotation[axis]}
-              unit="°"
-              disabled={false}
-              accentHex={HANDLE_AXIS_HEX[axis]}
-              parse={parseAngleInput}
-              onCommit={(value) => {
-                onSetAngle(axis, value);
-              }}
-            />
-          ))}
-        </div>
       )}
-      <div className="step-row" role="group" aria-label="Rotation step size">
-        <span className="step-label">Step:</span>
-        {ROTATION_STEPS.map((candidate) => (
-          <button
-            key={candidate}
-            type="button"
-            className="step-button"
-            aria-pressed={step === candidate}
-            onClick={() => {
-              onSetStep(candidate);
-            }}
-          >
-            {candidate}°
-          </button>
-        ))}
-      </div>
-      {AXES.map((axis) => (
-        <div key={axis} className="rotate-row">
-          <span
-            className="rotate-axis"
-            style={{ backgroundColor: HANDLE_AXIS_HEX[axis], color: '#ffffff' }}
-          >
-            {axis.toUpperCase()}
-          </span>
-          <button
-            type="button"
-            className="control-button rotate-button"
-            aria-label={`Rotate ${axis.toUpperCase()} by minus ${step} degrees`}
-            onClick={() => {
-              onRotateStep(axis, -1);
-            }}
-          >
-            −{step}°
-          </button>
-          <button
-            type="button"
-            className="control-button rotate-button"
-            aria-label={`Rotate ${axis.toUpperCase()} by plus ${step} degrees`}
-            onClick={() => {
-              onRotateStep(axis, 1);
-            }}
-          >
-            +{step}°
-          </button>
-          <button
-            type="button"
-            className="control-button rotate-button"
-            aria-label={`Rotate ${axis.toUpperCase()} 90 degrees`}
-            onClick={() => {
-              onRotate90(axis);
-            }}
-          >
-            90°
-          </button>
-          <button
-            type="button"
-            className="control-button rotate-button"
-            aria-label={`Flip ${axis.toUpperCase()} 180 degrees`}
-            onClick={() => {
-              onFlip(axis);
-            }}
-          >
-            Flip 180°
-          </button>
-        </div>
-      ))}
-      <button type="button" className="control-button" onClick={onResetOrientation}>
-        Reset orientation
-      </button>
+      {hingeMode ? (
+        <>
+          <p className="panel-note">
+            Drag the piece around its screw, or type an exact hinge angle. The screw and the other
+            pieces stay fixed.
+          </p>
+          <NumberField
+            label="Hinge angle"
+            value={single?.hinge?.angle ?? 0}
+            unit="°"
+            disabled={!single?.hinge?.available}
+            parse={parseAngleInput}
+            onCommit={onHingeAngle}
+          />
+        </>
+      ) : (
+        <>
+          <fieldset className="pose-controls" disabled={single?.locked}>
+            <p className="panel-note">
+              {mode === 'move'
+                ? 'Drag the piece to move it, or type exact coordinates below. Switch to Rotate to show the rotation handles.'
+                : 'Drag a curved arrow handle to turn about that axis — inside the circle it snaps to 22.5°, outside it turns freely in 1° steps, hold Shift for 45° steps. Or drag the piece itself to turn it about Y (up).'}
+            </p>
+            {hoverAxis !== null && (
+              <p
+                className="handle-hover-note"
+                style={{ color: HANDLE_AXIS_HEX[hoverAxis] }}
+                aria-live="polite"
+              >
+                Drag to rotate about {hoverAxis.toUpperCase()} — grab the{' '}
+                {HANDLE_AXIS_COLOUR_NAMES[hoverAxis]} curved arrow.
+              </p>
+            )}
+            <p className="handle-legend">
+              <span style={{ color: HANDLE_AXIS_HEX.x }}>● Red = X</span>
+              {', '}
+              <span style={{ color: HANDLE_AXIS_HEX.y }}>● Green = Y</span>
+              {', '}
+              <span style={{ color: HANDLE_AXIS_HEX.z }}>● Blue = Z</span>
+              {' — drag a curved arrow handle, or use the buttons.'}
+            </p>
+
+            <h3 className="move-rotate-heading">Move</h3>
+            {single === null ? (
+              <p className="panel-note">Select a single piece to type exact coordinates.</p>
+            ) : (
+              <div className="field-row">
+                {AXES.map((axis) => (
+                  <NumberField
+                    key={axis}
+                    label={axis === 'y' ? 'Y · height' : axis.toUpperCase()}
+                    value={single.position[axis]}
+                    unit="mm"
+                    disabled={single.locked}
+                    accentHex={HANDLE_AXIS_HEX[axis]}
+                    parse={parsePositionInput}
+                    onCommit={(value) => {
+                      onMove(axis, value);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
+            <h3 className="move-rotate-heading">Rotate</h3>
+            {single === null ? (
+              <p className="panel-note">
+                Select a single piece to type exact angles. The step, flip, and reset buttons below
+                apply to every selected piece.
+              </p>
+            ) : (
+              <div className="field-row">
+                {AXES.map((axis) => (
+                  <NumberField
+                    key={axis}
+                    label={`${axis.toUpperCase()} angle`}
+                    value={single.rotation[axis]}
+                    unit="°"
+                    disabled={single.locked}
+                    accentHex={HANDLE_AXIS_HEX[axis]}
+                    parse={parseAngleInput}
+                    onCommit={(value) => {
+                      onSetAngle(axis, value);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+            <div className="step-row" role="group" aria-label="Rotation step size">
+              <span className="step-label">Step:</span>
+              {ROTATION_STEPS.map((candidate) => (
+                <button
+                  key={candidate}
+                  type="button"
+                  className="step-button"
+                  aria-pressed={step === candidate}
+                  onClick={() => {
+                    onSetStep(candidate);
+                  }}
+                >
+                  {candidate}°
+                </button>
+              ))}
+            </div>
+            {AXES.map((axis) => (
+              <div key={axis} className="rotate-row">
+                <span
+                  className="rotate-axis"
+                  style={{ backgroundColor: HANDLE_AXIS_HEX[axis], color: '#ffffff' }}
+                >
+                  {axis.toUpperCase()}
+                </span>
+                <button
+                  type="button"
+                  className="control-button rotate-button"
+                  aria-label={`Rotate ${axis.toUpperCase()} by minus ${step} degrees`}
+                  onClick={() => {
+                    onRotateStep(axis, -1);
+                  }}
+                >
+                  −{step}°
+                </button>
+                <button
+                  type="button"
+                  className="control-button rotate-button"
+                  aria-label={`Rotate ${axis.toUpperCase()} by plus ${step} degrees`}
+                  onClick={() => {
+                    onRotateStep(axis, 1);
+                  }}
+                >
+                  +{step}°
+                </button>
+                <button
+                  type="button"
+                  className="control-button rotate-button"
+                  aria-label={`Rotate ${axis.toUpperCase()} 90 degrees`}
+                  onClick={() => {
+                    onRotate90(axis);
+                  }}
+                >
+                  90°
+                </button>
+                <button
+                  type="button"
+                  className="control-button rotate-button"
+                  aria-label={`Flip ${axis.toUpperCase()} 180 degrees`}
+                  onClick={() => {
+                    onFlip(axis);
+                  }}
+                >
+                  Flip 180°
+                </button>
+              </div>
+            ))}
+            <button type="button" className="control-button" onClick={onResetOrientation}>
+              Reset orientation
+            </button>
+          </fieldset>
+        </>
+      )}
     </section>
   );
 }
