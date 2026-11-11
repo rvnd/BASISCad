@@ -3,7 +3,31 @@
 Run `npm run benchmark -- current` with Node.js 24. It bundles the same geometry
 code used by the website, loads the real STL library, and reports the median of
 five runs after warming each operation. JSON reports and Chrome-compatible CPU
-profiles go into the ignored `tmp/performance/` directory.
+profiles go into the ignored `tmp/performance/` directory. Add `--profile` for a
+separate profiling run; ordinary timing runs have no profiler attached.
+
+## Large designs
+
+Run `npm run benchmark -- large --large` for 2, 20, 50, and 100 items. The mixed
+fixtures include actual stock geometry, four screw/nut units, a rigid group, and
+a hinge. Fixtures are checked for floor crossings, overlap, and workplane bounds.
+Reports include the first operation, median and maximum of seven warmed samples,
+Node version, CPU model, and library loading time. Seven samples establish a
+comparison; browser percentiles use the longer interaction sequence below.
+
+On Apple M4 Max with Node 24.22.2, sharing reference-counted outlines reduced
+100-item scene mesh creation from **207.29 ms to 38.46 ms** (median). At 50 items,
+it changed from 100.80 ms to 37.81 ms. Deleting one instance preserves surviving
+outlines; the last owner disposes the shared buffer. Attribute changes invalidate
+the cache. Collision behavior and stock dimensions are unchanged.
+
+`e2e/performance.spec.ts` exercises all four sizes through the website. It reports
+trusted pointer input to the next animation-frame callback after WebGL submission,
+and frame intervals during camera orbit. These are observable browser boundaries,
+not a measurement of physical display presentation. The test also checks idle
+drawing, exact undo, and live GPU buffers after five add/remove cycles. CI retains
+JSON measurements as artifacts. Shared CI software rendering and the local relay
+must be identified in reports; neither establishes controlled desktop FPS targets.
 
 ## November 2026 measurements
 

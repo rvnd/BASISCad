@@ -54,6 +54,20 @@ jobs:
       - name: Browser tests
         run: npm run test:e2e
 
+      - name: Interaction benchmark
+        run: npm run benchmark -- ci-large --large
+
+      - name: Upload performance measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-measurements
+          path: |
+            tmp/performance/*.json
+            test-results/**/attachments/*.json
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload browser test failures
         if: failure()
         uses: actions/upload-artifact@v4
