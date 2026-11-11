@@ -259,9 +259,9 @@ Goal: the standalone version is steadier than the prototype it replaces, and rea
 Steps:
 
 - [ ] Work through the prototype's known faults one by one and confirm each is gone: dead Settings and Help buttons, a camera-views dropdown that would not open, a Manage Projects delete that did nothing, a comment mode that would not cancel, a wind test that lost the design off screen, and an autosave restore that lost the design's name.
-- [ ] Confirm there is still no resize or scale control, by design — pieces keep their real printed size, as in the prototype. If a class asks for resizing, that is a new milestone, not a quiet addition.
+- [x] Confirm there is still no resize or scale control, by design — pieces keep their real printed size, as in the prototype. If a class asks for resizing, that is a new milestone, not a quiet addition.
 - [ ] Build one reference design that uses most of the library — several girders, braces, a plate, at least four screws, a group, and a hinge — and run every test on it: gravity, wind, weights, and ping pong ball.
-- [ ] Print that reference design and check both printed pages against Milestone 12.
+- [x] Print that reference design and check both printed pages against Milestone 12. See `docs/classroom-readiness.md` and `docs/verification.md`; physics checks remain pending.
 - [ ] Test the whole flow on a computer and on a tablet, including a refresh in the middle of building.
 - [ ] Check performance with a large design on the 1,000 × 1,000 mm workplane. If the page slows down, fix it here rather than letting students hit it — the prototype needed a reload once it got sluggish.
 - [ ] Write a one-page note in the repo listing what the tests can and cannot tell a student, using the wording from Milestones 15 to 18.

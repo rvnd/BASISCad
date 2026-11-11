@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { writeFileSync } from 'node:fs';
 import { appUrl, expect, test } from './fixtures';
 import type { Page } from '@playwright/test';
 import { loadFixtureLibrary, performanceDesign } from '../scripts/designFixtures';
@@ -216,28 +217,31 @@ for (const count of [2, 20, 50, 100])
         renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : 'unavailable',
       };
     });
+    const path = testInfo.outputPath('performance-measurements.json');
+    writeFileSync(
+      path,
+      JSON.stringify(
+        {
+          items: count,
+          ...environment,
+          method: 'trusted pointer event to next animation-frame callback after WebGL submission',
+          relay: Boolean(process.env.PLAYWRIGHT_RELAY_URL),
+          samples: measured.inputMs.length,
+          inputMedianMs: percentile(measured.inputMs, 0.5),
+          inputP95Ms: percentile(measured.inputMs, 0.95),
+          editLongTasks: measured.longTasksMs.length,
+          editLongestTaskMs: Math.max(0, ...measured.longTasksMs),
+          orbitFrameMedianMs: percentile(orbitFrames, 0.5),
+          orbitFrameP95Ms: percentile(orbitFrames, 0.95),
+          buffersBefore: bufferBaseline,
+          buffersAfter: (await metrics(page)).buffers,
+        },
+        null,
+        2,
+      ) + '\n',
+    );
     await testInfo.attach('performance-measurements', {
       contentType: 'application/json',
-      body: Buffer.from(
-        JSON.stringify(
-          {
-            items: count,
-            ...environment,
-            method: 'trusted pointer event to next animation-frame callback after WebGL submission',
-            relay: Boolean(process.env.PLAYWRIGHT_RELAY_URL),
-            samples: measured.inputMs.length,
-            inputMedianMs: percentile(measured.inputMs, 0.5),
-            inputP95Ms: percentile(measured.inputMs, 0.95),
-            editLongTasks: measured.longTasksMs.length,
-            editLongestTaskMs: Math.max(0, ...measured.longTasksMs),
-            orbitFrameMedianMs: percentile(orbitFrames, 0.5),
-            orbitFrameP95Ms: percentile(orbitFrames, 0.95),
-            buffersBefore: bufferBaseline,
-            buffersAfter: (await metrics(page)).buffers,
-          },
-          null,
-          2,
-        ),
-      ),
+      path,
     });
   });

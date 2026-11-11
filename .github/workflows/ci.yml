@@ -64,7 +64,7 @@ jobs:
           name: performance-measurements
           path: |
             tmp/performance/*.json
-            test-results/**/attachments/*.json
+            test-results/**/performance-measurements.json
           if-no-files-found: ignore
           retention-days: 7
 
