@@ -25,6 +25,7 @@
     "dev": "vite",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
+    "reference:generate": "node scripts/generate-reference.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run --exclude=e2e/**",

@@ -29,3 +29,5 @@ test-results
 /output/pdf/
 /tmp/pdfs/
 /tmp/performance/
+/tmp/reference/
+/tmp/ci-performance-failures/

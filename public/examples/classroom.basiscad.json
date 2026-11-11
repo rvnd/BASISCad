@@ -1,0 +1,245 @@
+{
+  "format": "BASISCad",
+  "version": 1,
+  "units": "mm",
+  "document": {
+    "id": "classroom-reference",
+    "name": "Classroom Reference",
+    "updatedAt": 0,
+    "labelMode": "off",
+    "placed": [
+      {
+        "id": "group-stock-0",
+        "libraryId": "girder-1x6",
+        "position": { "x": -210, "y": 2.400000000000014, "z": -240 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "groupId": "classroom-group",
+        "groupRotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "group-stock-1",
+        "libraryId": "girder-1x6",
+        "position": { "x": -210, "y": 5.5750000000000135, "z": -240 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "groupId": "classroom-group",
+        "groupRotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "group-stock-2",
+        "libraryId": "girder-1x6",
+        "position": { "x": -210, "y": 8.750000000000014, "z": -240 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "group-stock-3",
+        "libraryId": "girder-1x6",
+        "position": { "x": -210, "y": 11.925000000000013, "z": -240 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "group-screw-0",
+        "libraryId": "fastener-1-2",
+        "position": { "x": -216.3148, "y": 0, "z": -239.9998 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "fastener": {
+          "holes": [
+            { "pieceId": "group-stock-0", "holeIndex": 0 },
+            { "pieceId": "group-stock-1", "holeIndex": 0 },
+            { "pieceId": "group-stock-2", "holeIndex": 0 },
+            { "pieceId": "group-stock-3", "holeIndex": 0 }
+          ],
+          "lengthInches": 0.5,
+          "stackDepthMm": 12.699999952316283
+        },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "group-screw-1",
+        "libraryId": "fastener-1-2",
+        "position": { "x": -229.0148, "y": 0, "z": -239.9998 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "fastener": {
+          "holes": [
+            { "pieceId": "group-stock-0", "holeIndex": 2 },
+            { "pieceId": "group-stock-1", "holeIndex": 2 },
+            { "pieceId": "group-stock-2", "holeIndex": 2 },
+            { "pieceId": "group-stock-3", "holeIndex": 2 }
+          ],
+          "lengthInches": 0.5,
+          "stackDepthMm": 12.699999952316297
+        },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "group-screw-2",
+        "libraryId": "fastener-1-2",
+        "position": { "x": -203.6148, "y": 1.4210854715202004e-14, "z": -239.9998 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "fastener": {
+          "holes": [
+            { "pieceId": "group-stock-0", "holeIndex": 4 },
+            { "pieceId": "group-stock-1", "holeIndex": 4 },
+            { "pieceId": "group-stock-2", "holeIndex": 4 },
+            { "pieceId": "group-stock-3", "holeIndex": 4 }
+          ],
+          "lengthInches": 0.5,
+          "stackDepthMm": 12.699999952316283
+        },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "hinge-base",
+        "libraryId": "girder-1x6",
+        "position": { "x": 230, "y": 3.17500004768373, "z": -240 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "hinge-arm",
+        "libraryId": "girder-1x6",
+        "position": { "x": 223.685, "y": 6.35000004768373, "z": -246.31459999999998 },
+        "rotation": { "x": 0, "y": 90, "z": 0 },
+        "hingeAngleDeg": 90,
+        "label": { "hidden": false }
+      },
+      {
+        "id": "hinge-screw",
+        "libraryId": "fastener-3-8",
+        "position": { "x": 223.6852, "y": 0, "z": -239.9998 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "fastener": {
+          "holes": [
+            { "pieceId": "hinge-base", "holeIndex": 0 },
+            { "pieceId": "hinge-arm", "holeIndex": 0 }
+          ],
+          "lengthInches": 0.375,
+          "stackDepthMm": 6.349999952316283
+        },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-10",
+        "libraryId": "girder-1x4",
+        "position": { "x": -444.5249996185303, "y": 0, "z": -63.65000009536743 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-11",
+        "libraryId": "girder-1x5",
+        "position": { "x": -375.2249984741211, "y": 0, "z": -63.64999961853027 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-12",
+        "libraryId": "girder-1x7",
+        "position": { "x": -286.7649955749512, "y": 0, "z": -63.65000009536743 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-13",
+        "libraryId": "girder-1x8",
+        "position": { "x": -179.14499282836914, "y": 0, "z": -63.65000009536743 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-14",
+        "libraryId": "girder-1x9",
+        "position": { "x": -58.82499313354492, "y": 0, "z": -63.65000009536743 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-15",
+        "libraryId": "girder-1x10",
+        "position": { "x": 74.19500732421875, "y": 0, "z": -63.64999961853027 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-16",
+        "libraryId": "girder-1x11",
+        "position": { "x": 219.91501235961914, "y": 0, "z": -63.65000009536743 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-17",
+        "libraryId": "girder-1x12",
+        "position": { "x": 378.335018157959, "y": 0, "z": -63.65000009536743 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-18",
+        "libraryId": "brace-1x2",
+        "position": { "x": -463.6494998931885, "y": 0, "z": -29.52899932861328 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-19",
+        "libraryId": "brace-h",
+        "position": { "x": -426.17399978637695, "y": 0, "z": -38.94999933242798 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-20",
+        "libraryId": "brace-v",
+        "position": { "x": -382.2740001678467, "y": 0, "z": -38.911999225616455 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-21",
+        "libraryId": "brace-l",
+        "position": { "x": -341.72800064086914, "y": 0, "z": -38.94949913024902 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-22",
+        "libraryId": "brace-s",
+        "position": { "x": -304.53600120544434, "y": 0, "z": -38.94999933242798 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-23",
+        "libraryId": "plate-team",
+        "position": { "x": -257.64000129699707, "y": 0, "z": -38.94999885559082 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-24",
+        "libraryId": "plate-2x2",
+        "position": { "x": -207.4315013885498, "y": 0, "z": -32.59999942779541 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "stock-25",
+        "libraryId": "plate-2x3",
+        "position": { "x": -169.96450233459473, "y": 0, "z": -26.25 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      },
+      {
+        "id": "probe",
+        "libraryId": "girder-1x4",
+        "position": { "x": -400, "y": 0, "z": 350 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "label": { "hidden": false }
+      }
+    ]
+  }
+}

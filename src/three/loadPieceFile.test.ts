@@ -97,6 +97,17 @@ describe('loadPieceFile', () => {
     geometry.dispose();
   });
 
+  it('rejects non-finite OBJ coordinates and normals before they can enter a design', async () => {
+    for (const value of ['NaN', 'Infinity', '1e100']) {
+      await expect(
+        loadPieceGeometry(objFile(`v ${value} 0 0\nv 10 0 0\nv 0 0 10\nf 1 2 3\n`)),
+      ).rejects.toThrow('invalid vertex');
+    }
+    await expect(
+      loadPieceGeometry(objFile('v 0 0 0\nv 10 0 0\nv 0 0 10\nvn NaN 0 0\nf 1//1 2//1 3//1\n')),
+    ).rejects.toThrow('invalid normals');
+  });
+
   it('lays a Z-up geometry flat and leaves a flat one alone', () => {
     const zUp = new THREE.BoxGeometry(20, 10, 5);
     orientFlat(zUp);

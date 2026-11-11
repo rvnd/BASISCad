@@ -166,6 +166,7 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importedAssets, setImportedAssets] = useState<readonly ImportedPieceAsset[]>([]);
+  const importEpoch = useRef(0);
   const [backupOpen, setBackupOpen] = useState(false);
   const closeBackup = useCallback(() => setBackupOpen(false), []);
   // The spec pieces, with stand-in geometry attached once it loads.
@@ -405,10 +406,15 @@ export default function App() {
   }, []);
 
   const onImport = useCallback((file: File, category: PieceCategory, colourHex: string) => {
+    const epoch = importEpoch.current;
     setImporting(true);
     setImportError(null);
     loadPieceGeometry(file)
       .then((loaded) => {
+        if (epoch !== importEpoch.current) {
+          loaded.geometry.dispose();
+          return;
+        }
         const id = `imported-${createDesignId()}`;
         registerGeometry(id, loaded.geometry);
         const colourName = PIECE_COLOURS.find((colour) => colour.hex === colourHex)?.name ?? 'Grey';
@@ -425,15 +431,22 @@ export default function App() {
           source: 'import',
           geometryId: id,
         };
-        const asset = captureImportedAsset(piece);
+        let asset: ImportedPieceAsset;
+        try {
+          asset = captureImportedAsset(piece);
+        } catch (error) {
+          releaseGeometry(id);
+          throw error;
+        }
         setImportedAssets((previous) => [...previous, asset]);
         setImportedPieces((previous) => [...previous, piece]);
       })
       .catch((error: unknown) => {
-        setImportError(error instanceof Error ? error.message : 'Could not import that file.');
+        if (epoch === importEpoch.current)
+          setImportError(error instanceof Error ? error.message : 'Could not import that file.');
       })
       .finally(() => {
-        setImporting(false);
+        if (epoch === importEpoch.current) setImporting(false);
       });
   }, []);
 
@@ -521,6 +534,9 @@ export default function App() {
   );
 
   const startDesign = useCallback((name: string) => {
+    importEpoch.current++;
+    setImporting(false);
+    setImportError(null);
     setGuideOpen(!guideSeenRef.current);
     idlePlacedRef.current = [];
     clearRecoveryDraft(window.localStorage);
@@ -547,6 +563,9 @@ export default function App() {
     try {
       validateProject(design);
       const staged = restoreImportedAssets(design.imports ?? []);
+      importEpoch.current++;
+      setImporting(false);
+      setImportError(null);
       staged.forEach(({ piece, geometry }) => registerGeometry(piece.geometryId!, geometry));
       setImportedPieces(staged.map(({ piece }) => piece));
       setImportedAssets(design.imports ?? []);

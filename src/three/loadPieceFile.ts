@@ -113,6 +113,21 @@ function checkGeometry(geometry: THREE.BufferGeometry): void {
   if (position === undefined || position.count === 0) {
     throw new Error('The file contains no geometry to import.');
   }
+  if (position.itemSize !== 3 || position.count % 3 !== 0)
+    throw new Error('The file must contain complete triangles.');
+  for (let i = 0; i < position.count; i++) {
+    if (![position.getX(i), position.getY(i), position.getZ(i)].every(Number.isFinite))
+      throw new Error('The file contains invalid vertex coordinates.');
+  }
+  const normal = geometry.getAttribute('normal');
+  if (normal) {
+    if (normal.itemSize !== 3 || normal.count !== position.count)
+      throw new Error('The file contains invalid normals.');
+    for (let i = 0; i < normal.count; i++) {
+      if (![normal.getX(i), normal.getY(i), normal.getZ(i)].every(Number.isFinite))
+        throw new Error('The file contains invalid normals.');
+    }
+  }
 }
 
 /**
@@ -140,10 +155,17 @@ export function parsePieceGeometry(
   } else {
     throw new Error('Only .stl and .obj files can be imported.');
   }
-  checkGeometry(geometry);
-  orientFlat(geometry, options.assumeZUp ?? false);
-  normaliseGeometryPosition(geometry);
-  return { geometry, sizeMm: measureGeometry(geometry) };
+  try {
+    checkGeometry(geometry);
+    orientFlat(geometry, options.assumeZUp ?? false);
+    normaliseGeometryPosition(geometry);
+    // Float32 storage can overflow even when the source text was finite.
+    checkGeometry(geometry);
+    return { geometry, sizeMm: measureGeometry(geometry) };
+  } catch (error) {
+    geometry.dispose();
+    throw error;
+  }
 }
 
 /**
