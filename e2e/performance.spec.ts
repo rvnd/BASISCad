@@ -131,14 +131,17 @@ for (const count of [2, 20, 50, 100])
         y: canvas.y + ((1 - p.y) * canvas.height) / 2,
       };
     };
-    const start = point(400),
-      end = point(440);
+    const start = point(-400),
+      end = point(-360);
     await page.mouse.click(start.x, start.y);
     await expect(page.getByLabel('X in mm', { exact: true })).toBeVisible();
     await frames(page, 5);
     const idle = await metrics(page);
     await frames(page, 5);
     expect((await metrics(page)).draws).toBe(idle.draws);
+    expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, start)).toBe(
+      'CANVAS',
+    );
     const before = await page.evaluate(
       () => JSON.parse(localStorage.getItem('basiscad.recovery.v1')!).placed,
     );
@@ -162,7 +165,7 @@ for (const count of [2, 20, 50, 100])
     expect(measured.draws).toBeGreaterThan(idle.draws);
     await expect
       .poll(() => page.getByLabel('X in mm', { exact: true }).inputValue())
-      .not.toBe('400');
+      .not.toBe('-400');
     // Latency is reported, not gated on shared CI machines or relay transport.
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await frames(page);

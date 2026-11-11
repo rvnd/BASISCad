@@ -62,8 +62,8 @@ export function performanceDesign(
   count: number,
   library: ReadonlyMap<string, LibraryPiece>,
 ): readonly PlacedPiece[] {
-  const probe = piece('probe', 'girder-1x4', 400, 0, 350);
-  if (count === 2) return [piece('obstacle', 'girder-1x4', 400, 0, 400), probe];
+  const probe = piece('probe', 'girder-1x4', -400, 0, 350);
+  if (count === 2) return [piece('obstacle', 'girder-1x4', -400, 0, 400), probe];
   const result = [...joints(library)];
   const catalog = [
     ...SPEC_PIECES.filter((entry) => entry.id !== 'girder-1x6'),

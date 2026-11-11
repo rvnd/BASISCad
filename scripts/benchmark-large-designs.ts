@@ -60,7 +60,7 @@ for (const count of [2, 20, 50, 100]) {
     meshes.forEach(disposePieceMesh);
   });
   measure('Sweep a free piece 40 mm', () =>
-    dragPiece(probe, { ...probe.position, x: 440 }, placed, geometry, 0),
+    dragPiece(probe, { ...probe.position, x: -360 }, placed, geometry, 0),
   );
   measure('Find aligned screw targets', () => alignedFastenerTargets(placed, library));
   if (count > 2) {
