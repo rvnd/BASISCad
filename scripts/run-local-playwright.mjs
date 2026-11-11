@@ -10,10 +10,13 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const installedBrowse = join(homedir(), '.browse/bin/browse');
 const browse = process.env.BROWSE_BIN || (existsSync(installedBrowse) ? installedBrowse : 'browse');
 const session = `basiscad-test-${randomUUID()}`;
-const tokenFile = join(
-  process.env.OPENCODE_BROWSER_HOME || join(homedir(), '.local/share/opencode-browser'),
-  'relay-token',
-);
+const tokenCandidates = process.env.OPENCODE_BROWSER_HOME
+  ? [join(process.env.OPENCODE_BROWSER_HOME, 'relay-token')]
+  : [
+      join(process.env.XDG_DATA_HOME || join(homedir(), '.local/share'), 'browse/relay-token'),
+      join(homedir(), '.local/share/opencode-browser/relay-token'),
+    ];
+const tokenFile = tokenCandidates.find(existsSync);
 
 function browseCommand(args) {
   return execFileSync(browse, args, { cwd: root, encoding: 'utf8' });
@@ -36,9 +39,12 @@ let createdSession = false;
 try {
   const status = JSON.parse(browseCommand(['status', '--json']));
   if (!status.extension?.connected) {
-    throw new Error('Open the Chrome profile with the paired browse extension, then retry.');
+    throw new Error(
+      status.extension?.nextStep ||
+        'Open the Chrome profile with the paired browse extension, then retry.',
+    );
   }
-  if (!existsSync(tokenFile)) throw new Error('The installed browse relay token file is missing.');
+  if (!tokenFile) throw new Error('The installed browse relay token file is missing.');
   const baseURL = `http://127.0.0.1:${await freePort()}/BASISCad/`;
   browseCommand(['session', 'new', session, '--allow-origin', new URL(baseURL).origin]);
   createdSession = true;
