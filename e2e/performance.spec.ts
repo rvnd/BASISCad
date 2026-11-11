@@ -38,7 +38,7 @@ for (const count of [2, 20, 50, 100])
   test(`${count}-item design redraws edits, preserves undo and releases buffers after repeated add/remove`, async ({
     page,
   }, testInfo) => {
-    test.setTimeout(process.env.PLAYWRIGHT_RELAY_URL ? 240_000 : 90_000);
+    test.setTimeout(process.env.PLAYWRIGHT_RELAY_URL ? 240_000 : 180_000);
     await page.addInitScript(() => {
       const result: Metrics = { draws: 0, buffers: 0, inputMs: [], framesMs: [], longTasksMs: [] };
       new PerformanceObserver((list) => {

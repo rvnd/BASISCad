@@ -28,6 +28,9 @@ not a measurement of physical display presentation. The test also checks idle
 drawing, exact undo, and live GPU buffers after five add/remove cycles. CI retains
 JSON measurements as artifacts. Shared CI software rendering and the local relay
 must be identified in reports; neither establishes controlled desktop FPS targets.
+The drag reports at least 100 measured inputs, p95 latency, and the number and
+maximum duration of main-thread long tasks. The test time allowance includes
+software rendering; it is separate from the provisional desktop latency target.
 
 ## November 2026 measurements
 

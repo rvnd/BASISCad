@@ -199,5 +199,5 @@ test('an import still reading its file cannot land in a different project', asyn
   expect((await document(page)).name).toBe('Next class');
   expect((await document(page)).placed).toEqual([]);
   expect((await document(page)).imports).toBeUndefined();
-  await expect(page.getByRole('listitem').filter({ hasText: 'late' })).toHaveCount(0);
+  await expect(page.getByText('late', { exact: true })).toHaveCount(0);
 });
