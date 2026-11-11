@@ -1,4 +1,6 @@
 import ProjectBackupDialog from './components/ProjectBackupDialog';
+import DesignPieces from './components/DesignPieces';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { backupFilename, serializeBackup, validateProject } from './app/projectBackup';
 import type { ImportedPieceAsset } from './app/projectAssets';
 import { captureImportedAsset, restoreImportedAssets } from './three/projectGeometry';
@@ -454,12 +456,16 @@ export default function App() {
     () => [...specPieces, ...importedPieces],
     [specPieces, importedPieces],
   );
+  const libraryById = useMemo(
+    () => new Map(libraryPieces.map((piece) => [piece.id, piece])),
+    [libraryPieces],
+  );
 
   // The viewport's piece callbacks must keep a stable identity (the
   // viewport mounts once), so they read the library through a ref.
   useEffect(() => {
-    libraryByIdRef.current = new Map(libraryPieces.map((piece) => [piece.id, piece]));
-  }, [libraryPieces]);
+    libraryByIdRef.current = libraryById;
+  }, [libraryById]);
 
   // Keep the 3D scene in sync with the design data. The selection
   // mode is a dependency too: entering Rotate mode must show the
@@ -920,6 +926,60 @@ export default function App() {
     }
   }, []);
 
+  const selectDesignPiece = useCallback((id: string, additive: boolean) => {
+    setSelectedIds((previous) => selectPiece(placedRef.current, previous, id, additive));
+    setHingeMode(false);
+    setBadgeAxis(null);
+  }, []);
+
+  const onViewportKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (
+      event.target !== event.currentTarget ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      connecting ||
+      fastening ||
+      hingeMode ||
+      dialogMode !== null ||
+      backupOpen ||
+      printDialog ||
+      guideOpen
+    )
+      return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setSelectedIds([]);
+      setBadgeAxis(null);
+      return;
+    }
+    if (!selectedIds.length) return;
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault();
+      removeSelected();
+      return;
+    }
+    const direction =
+      event.key === 'ArrowLeft' || event.key === 'ArrowDown'
+        ? -1
+        : event.key === 'ArrowRight' || event.key === 'ArrowUp'
+          ? 1
+          : 0;
+    if (!direction) return;
+    event.preventDefault();
+    const horizontal = event.key === 'ArrowLeft' || event.key === 'ArrowRight';
+    if (selectionMode === 'rotate') rotateStepSelected(horizontal ? 'y' : 'x', direction);
+    else {
+      const axis = horizontal ? 'x' : 'z';
+      const pose = selectionPose(placedRef.current, selectedIds, libraryByIdRef.current);
+      if (pose)
+        moveSelected(
+          axis,
+          pose.position[axis] + (horizontal ? direction : -direction) * (event.shiftKey ? 10 : 1),
+        );
+    }
+  };
+
   const attemptConnection = (
     first: readonly HoleRef[],
     second: readonly HoleRef[],
@@ -1123,6 +1183,21 @@ export default function App() {
       />
       <main className="app-main">
         <ViewControls
+          designPieces={
+            <DesignPieces
+              pieces={placed.map((piece) => ({
+                id: piece.id,
+                name: piece.fastener
+                  ? fastenerName(piece.fastener)
+                  : (libraryById.get(piece.libraryId)?.name ?? 'Piece'),
+                locked: !!piece.locked,
+                grouped: !!piece.groupId,
+              }))}
+              selectedIds={selectedIds}
+              disabled={connecting || fastening || dialogMode !== null}
+              onSelect={selectDesignPiece}
+            />
+          }
           currentView={currentView}
           onSelectView={selectView}
           onZoomIn={() => viewportRef.current?.zoomIn()}
@@ -1160,7 +1235,11 @@ export default function App() {
             />
           )}
           {guideOpen && <FirstUseGuide key={activeDesign.id} onClose={closeGuide} />}
-          <Viewport onReady={onViewportReady} designCallbacks={designCallbacks} />
+          <Viewport
+            onReady={onViewportReady}
+            designCallbacks={designCallbacks}
+            onKeyDown={onViewportKeyDown}
+          />
           <BlueprintLabels
             labels={blueprintLabels}
             move={labelsMove && !connecting && !fastening}

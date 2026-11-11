@@ -41,6 +41,7 @@ export default function AngleBadge({ axis, angle, onSetAngle }: AngleBadgeProps)
   // Escape unmounts the input, which can still fire a blur — the flag
   // stops that blur from applying a cancelled draft.
   const cancellingRef = useRef(false);
+  const dirty = useRef(false);
   const hex = HANDLE_AXIS_HEX[axis];
 
   const commit = (): void => {
@@ -50,9 +51,10 @@ export default function AngleBadge({ axis, angle, onSetAngle }: AngleBadgeProps)
     }
     const parsed = parseAngleInput(draft);
     setEditing(false);
-    if (parsed !== null) {
+    if (dirty.current && parsed !== null) {
       onSetAngle(axis, parsed);
     }
+    dirty.current = false;
   };
 
   if (editing) {
@@ -67,6 +69,7 @@ export default function AngleBadge({ axis, angle, onSetAngle }: AngleBadgeProps)
           aria-label={`Type an angle for ${axis.toUpperCase()}`}
           style={{ borderColor: hex, color: hex }}
           onChange={(event) => {
+            dirty.current = true;
             setDraft(event.target.value);
           }}
           onFocus={(event) => {
@@ -99,6 +102,8 @@ export default function AngleBadge({ axis, angle, onSetAngle }: AngleBadgeProps)
         title="Click to type an angle"
         aria-label={`Angle about ${axis.toUpperCase()}: ${formatAngleValue(angle)} degrees. Click to type an angle.`}
         onClick={() => {
+          dirty.current = false;
+          cancellingRef.current = false;
           setDraft(formatAngleValue(angle));
           setEditing(true);
         }}

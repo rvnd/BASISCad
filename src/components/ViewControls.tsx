@@ -1,4 +1,5 @@
 import CameraViewsDropdown from './CameraViewsDropdown';
+import type { ReactNode } from 'react';
 import type { CameraViewId } from '../three/cameraViews';
 
 /**
@@ -13,6 +14,7 @@ import type { CameraViewId } from '../three/cameraViews';
  */
 
 interface ViewControlsProps {
+  designPieces?: ReactNode;
   currentView: CameraViewId;
   onSelectView: (viewId: CameraViewId) => void;
   onZoomIn: () => void;
@@ -36,6 +38,7 @@ interface ViewControlsProps {
 }
 
 export default function ViewControls({
+  designPieces,
   currentView,
   onSelectView,
   onZoomIn,
@@ -133,6 +136,7 @@ export default function ViewControls({
           🗑 Remove from design
         </button>
       </div>
+      {designPieces}
     </aside>
   );
 }

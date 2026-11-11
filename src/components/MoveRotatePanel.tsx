@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { PositionMm, RotationDeg, SelectionMode } from '../app/design';
 import { MANUAL_ROTATION_STEP_DEG } from '../app/rotation';
 import { parseAngleInput, parsePositionInput } from '../app/rotation';
@@ -25,12 +25,9 @@ type Axis = 'x' | 'y' | 'z';
 
 const AXES: readonly Axis[] = ['x', 'y', 'z'];
 
-/** Show a whole number without decimals, otherwise one decimal. */
+/** Keep submillimetre coordinates readable without rounding on focus or blur. */
 function formatNumber(value: number): string {
-  if (Number.isInteger(value)) {
-    return String(value);
-  }
-  return value.toFixed(1);
+  return String(Number(value.toFixed(6)));
 }
 
 interface NumberFieldProps {
@@ -57,6 +54,8 @@ function NumberField({
   parse,
 }: NumberFieldProps) {
   const [draft, setDraft] = useState(formatNumber(value));
+  const [dirty, setDirty] = useState(false);
+  const cancelled = useRef(false);
   // When the live value changes from outside (a step button, a drag,
   // another field), the draft follows it. This is the render-time
   // adjustment React documents for syncing state from props — no
@@ -65,9 +64,16 @@ function NumberField({
   if (prevValue !== value) {
     setPrevValue(value);
     setDraft(formatNumber(value));
+    setDirty(false);
   }
 
   const commit = (): void => {
+    if (cancelled.current) {
+      cancelled.current = false;
+      return;
+    }
+    if (!dirty) return;
+    setDirty(false);
     const parsed = parse(draft);
     if (parsed === null) {
       setDraft(formatNumber(value));
@@ -93,11 +99,20 @@ function NumberField({
         disabled={disabled}
         aria-label={`${label} in ${unit}`}
         onChange={(event) => {
+          setDirty(true);
           setDraft(event.target.value);
         }}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
+            event.preventDefault();
+            event.currentTarget.blur();
+          } else if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            cancelled.current = true;
+            setDirty(false);
+            setDraft(formatNumber(value));
             event.currentTarget.blur();
           }
         }}

@@ -253,6 +253,66 @@ body {
   border-bottom: none;
 }
 
+.library-entry .library-name {
+  flex-basis: calc(100% - 28px);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.viewport:focus-visible {
+  outline: 2px solid var(--brand-red);
+  outline-offset: -2px;
+}
+
+.design-pieces {
+  margin-top: 12px;
+}
+.design-pieces summary {
+  font-weight: 700;
+  cursor: pointer;
+}
+.design-pieces-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  max-height: 210px;
+  overflow-y: auto;
+}
+.design-piece-button {
+  width: 100%;
+  text-align: left;
+  padding: 6px;
+  margin-bottom: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.design-piece-button small {
+  display: block;
+  color: var(--text-muted);
+}
+.design-piece-button[aria-pressed='true'] {
+  border-color: var(--brand-red);
+  background: #fff4f4;
+}
+.design-piece-button:focus-visible {
+  outline: 2px solid var(--brand-red);
+  outline-offset: 1px;
+}
+
 .library-place {
   margin-left: auto;
   padding: 3px 10px;
