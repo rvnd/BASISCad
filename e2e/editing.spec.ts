@@ -42,12 +42,12 @@ test('numeric fields preserve untouched precision, cancel with Escape and commit
 }) => {
   await open(page);
   const x = page.getByLabel('X in mm', { exact: true }),
-    y = page.getByLabel('Y in mm', { exact: true });
+    y = page.getByLabel('Y · height in mm', { exact: true });
   await expect(y).toHaveValue('3.175');
   await x.focus();
   await x.press('Tab');
-  await page.getByLabel('Y in °', { exact: true }).focus();
-  await page.getByLabel('Y in °', { exact: true }).press('Tab');
+  await page.getByLabel('Y angle in °', { exact: true }).focus();
+  await page.getByLabel('Y angle in °', { exact: true }).press('Tab');
   expect(await placed(page)).toEqual(original);
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
   await x.fill('999');
@@ -62,8 +62,8 @@ test('numeric fields preserve untouched precision, cancel with Escape and commit
   await expect.poll(async () => (await placed(page))[0].position.y).toBe(4.7625);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   expect(await placed(page)).toEqual(original);
-  await page.getByLabel('Y in °', { exact: true }).fill('45.2');
-  await page.getByLabel('Y in °', { exact: true }).press('Enter');
+  await page.getByLabel('Y angle in °', { exact: true }).fill('45.2');
+  await page.getByLabel('Y angle in °', { exact: true }).press('Enter');
   await expect.poll(async () => (await placed(page))[0].rotation.y).toBe(45);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   expect(await placed(page)).toEqual(original);
