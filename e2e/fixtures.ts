@@ -7,7 +7,7 @@ export const appUrl = process.env.PLAYWRIGHT_BASE_URL || './';
 // The extension uses existing Chrome tabs, so it cannot create incognito
 // contexts. The local launcher assigns a fresh origin and runs one test at a
 // time; resetting only that origin keeps saved-design tests independent.
-export const test = process.env.PLAYWRIGHT_RELAY_URL
+const browserTest = process.env.PLAYWRIGHT_RELAY_URL
   ? base.extend({
       browser: [
         async ({ playwright }, runTest) => {
@@ -92,11 +92,17 @@ export const test = process.env.PLAYWRIGHT_RELAY_URL
 
 // Ordinary feature tests start with the tutorial dismissed. Guide tests use
 // genuine first-use storage and exercise its persistence themselves.
-test.beforeEach(async ({ page }, testInfo) => {
-  if (testInfo.file.endsWith('guide.spec.ts')) return;
-  await page.addInitScript(() => {
-    if (location.protocol === 'http:' || location.protocol === 'https:') {
-      localStorage.setItem('basiscad.guide-seen.v1', 'true');
-    }
-  });
+export const test = browserTest.extend<{ guidePreference: void }>({
+  guidePreference: [
+    async ({ page }, use, testInfo) => {
+      if (!testInfo.file.endsWith('guide.spec.ts')) {
+        await page.addInitScript(() => {
+          if (location.protocol === 'http:' || location.protocol === 'https:')
+            localStorage.setItem('basiscad.guide-seen.v1', 'true');
+        });
+      }
+      await use();
+    },
+    { auto: true },
+  ],
 });

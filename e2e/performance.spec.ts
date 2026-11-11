@@ -11,6 +11,7 @@ interface Metrics {
   buffers: number;
   inputMs: number[];
   framesMs: number[];
+  longTasksMs: number[];
 }
 async function frames(page: Page, count = 2) {
   await page.evaluate(
@@ -39,7 +40,10 @@ for (const count of [2, 20, 50, 100])
   }, testInfo) => {
     test.setTimeout(process.env.PLAYWRIGHT_RELAY_URL ? 240_000 : 90_000);
     await page.addInitScript(() => {
-      const result: Metrics = { draws: 0, buffers: 0, inputMs: [], framesMs: [] };
+      const result: Metrics = { draws: 0, buffers: 0, inputMs: [], framesMs: [], longTasksMs: [] };
+      new PerformanceObserver((list) => {
+        result.longTasksMs.push(...list.getEntries().map((entry) => entry.duration));
+      }).observe({ type: 'longtask', buffered: false });
       (window as unknown as { cadMetrics: Metrics }).cadMetrics = result;
       const buffers = new Set<WebGLBuffer>(),
         proto = WebGL2RenderingContext.prototype;
@@ -149,6 +153,7 @@ for (const count of [2, 20, 50, 100])
       const m = (window as unknown as { cadMetrics: Metrics }).cadMetrics;
       m.inputMs = [];
       m.framesMs = [];
+      m.longTasksMs = [];
     });
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
@@ -163,6 +168,7 @@ for (const count of [2, 20, 50, 100])
     await frames(page);
     const measured = await metrics(page);
     expect(measured.draws).toBeGreaterThan(idle.draws);
+    expect(measured.inputMs.length).toBeGreaterThanOrEqual(100);
     await expect
       .poll(() => page.getByLabel('X in mm', { exact: true }).inputValue())
       .not.toBe('-400');
@@ -222,6 +228,8 @@ for (const count of [2, 20, 50, 100])
             samples: measured.inputMs.length,
             inputMedianMs: percentile(measured.inputMs, 0.5),
             inputP95Ms: percentile(measured.inputMs, 0.95),
+            editLongTasks: measured.longTasksMs.length,
+            editLongestTaskMs: Math.max(0, ...measured.longTasksMs),
             orbitFrameMedianMs: percentile(orbitFrames, 0.5),
             orbitFrameP95Ms: percentile(orbitFrames, 0.95),
             buffersBefore: bufferBaseline,
