@@ -110,7 +110,7 @@ export default function Header({
         </div>
       </div>
       {tools}
-      <span className="header-status" role="status">
+      <span className="header-status" role="status" aria-label="Project status">
         {saveStatus ?? ''}
       </span>
       <div className="header-menu" ref={menuRef}>

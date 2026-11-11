@@ -46,7 +46,7 @@ export default function DesignPieces({ pieces, selectedIds, disabled, onSelect }
   return (
     <details className="panel design-pieces" open>
       <summary>Design pieces ({pieces.length})</summary>
-      <p className="panel-note" role="status">
+      <p className="panel-note" role="status" aria-label="Selection status">
         {selectedIds.length} selected
       </p>
       <p className="panel-note">

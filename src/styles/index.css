@@ -932,6 +932,11 @@ body {
   white-space: nowrap;
 }
 
+.field-row .field-label {
+  min-height: 32px;
+  white-space: normal;
+}
+
 .field-unit {
   font-weight: 400;
   color: var(--text-muted);

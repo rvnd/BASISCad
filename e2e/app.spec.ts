@@ -161,7 +161,9 @@ test('saves and reopens a named design on this device', async ({ page }) => {
     .click();
   await page.getByRole('button', { name: 'Menu' }).click();
   await page.getByRole('menuitem', { name: 'Save Design' }).click();
-  await expect(page.getByRole('status')).toHaveText('Saved on this device');
+  await expect(page.getByRole('status', { name: 'Project status', exact: true })).toHaveText(
+    'Saved on this device',
+  );
 
   await page.reload();
   await page.getByRole('button', { name: 'Open saved design' }).click();
