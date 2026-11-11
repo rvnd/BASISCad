@@ -17,6 +17,7 @@ interface ProjectDialogProps {
   onRestore: () => void;
   onDiscardRecovery: () => void;
   onShowOpen: () => void;
+  onImportBackup: () => void;
 }
 
 function formatDate(timestamp: number): string {
@@ -37,6 +38,7 @@ export default function ProjectDialog({
   onRestore,
   onDiscardRecovery,
   onShowOpen,
+  onImportBackup,
 }: ProjectDialogProps) {
   const [name, setName] = useState(mode === 'rename' ? currentName : '');
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -80,6 +82,12 @@ export default function ProjectDialog({
             </button>
           )}
         </div>
+
+        {(mode === 'new' || mode === 'open') && (
+          <button type="button" className="dialog-secondary" onClick={onImportBackup}>
+            Open Backup
+          </button>
+        )}
 
         {(mode === 'new' || mode === 'rename') && (
           <form

@@ -13,7 +13,14 @@ import type * as THREE from 'three';
 const geometries = new Map<string, THREE.BufferGeometry>();
 
 export function registerGeometry(id: string, geometry: THREE.BufferGeometry): void {
+  const previous = geometries.get(id);
+  if (previous && previous !== geometry) previous.dispose();
   geometries.set(id, geometry);
+}
+
+export function releaseGeometry(id: string): void {
+  geometries.get(id)?.dispose();
+  geometries.delete(id);
 }
 
 export function getGeometry(id: string): THREE.BufferGeometry | undefined {

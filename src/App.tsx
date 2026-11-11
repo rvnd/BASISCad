@@ -1,3 +1,7 @@
+import ProjectBackupDialog from './components/ProjectBackupDialog';
+import { backupFilename, serializeBackup, validateProject } from './app/projectBackup';
+import type { ImportedPieceAsset } from './app/projectAssets';
+import { captureImportedAsset, restoreImportedAssets } from './three/projectGeometry';
 import { MANUAL_ROTATION_STEP_DEG, snapManualAngle } from './app/rotation';
 import PrintViewDialog from './components/PrintViewDialog';
 import FirstUseGuide from './components/FirstUseGuide';
@@ -58,7 +62,7 @@ import {
   writeRecoveryDraft,
 } from './app/projects';
 import type { DesignDocument } from './app/projects';
-import { registerGeometry } from './three/libraryGeometry';
+import { registerGeometry, releaseGeometry } from './three/libraryGeometry';
 import {
   constrainDesignEdit,
   dragPiece,
@@ -161,7 +165,9 @@ export default function App() {
   const [importedPieces, setImportedPieces] = useState<readonly LibraryPiece[]>([]);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const importCounter = useRef(0);
+  const [importedAssets, setImportedAssets] = useState<readonly ImportedPieceAsset[]>([]);
+  const [backupOpen, setBackupOpen] = useState(false);
+  const closeBackup = useCallback(() => setBackupOpen(false), []);
   // The spec pieces, with stand-in geometry attached once it loads.
   const [specPieces, setSpecPieces] = useState<readonly LibraryPiece[]>(SPEC_PIECES);
   // Milestone 3 design state: placed pieces, selection, selection mode.
@@ -339,20 +345,25 @@ export default function App() {
     };
   }, []);
 
+  const currentDocument = useMemo<Omit<DesignDocument, 'updatedAt'>>(
+    () => ({
+      ...activeDesign,
+      placed,
+      ...(importedAssets.length ? { imports: importedAssets } : {}),
+    }),
+    [activeDesign, placed, importedAssets],
+  );
+
   useEffect(() => {
     if (activeDesign.name.length === 0) {
       return;
     }
     try {
-      writeRecoveryDraft(window.localStorage, {
-        ...activeDesign,
-        placed,
-        updatedAt: Date.now(),
-      });
+      writeRecoveryDraft(window.localStorage, { ...currentDocument, updatedAt: Date.now() });
     } catch {
       queueMicrotask(() => setStorageError('Could not save the recovery copy in this browser.'));
     }
-  }, [activeDesign, placed]);
+  }, [activeDesign.name, currentDocument]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -398,8 +409,7 @@ export default function App() {
     setImportError(null);
     loadPieceGeometry(file)
       .then((loaded) => {
-        importCounter.current += 1;
-        const id = `imported-${importCounter.current}`;
+        const id = `imported-${createDesignId()}`;
         registerGeometry(id, loaded.geometry);
         const colourName = PIECE_COLOURS.find((colour) => colour.hex === colourHex)?.name ?? 'Grey';
         const name = file.name.replace(/\.[^.]+$/, '') || 'Imported piece';
@@ -415,6 +425,8 @@ export default function App() {
           source: 'import',
           geometryId: id,
         };
+        const asset = captureImportedAsset(piece);
+        setImportedAssets((previous) => [...previous, asset]);
         setImportedPieces((previous) => [...previous, piece]);
       })
       .catch((error: unknown) => {
@@ -442,6 +454,14 @@ export default function App() {
   useEffect(() => {
     viewportRef.current?.syncDesign(placed, libraryPieces, selectedIds);
   }, [placed, libraryPieces, selectedIds, selectionMode, viewportReady]);
+
+  const previousImports = useRef<readonly LibraryPiece[]>([]);
+  useEffect(() => {
+    const retained = new Set(importedPieces.map((piece) => piece.geometryId));
+    for (const piece of previousImports.current)
+      if (piece.geometryId && !retained.has(piece.geometryId)) releaseGeometry(piece.geometryId);
+    previousImports.current = importedPieces;
+  }, [importedPieces]);
 
   // Keep the viewport's drag behaviour in step with the selection mode.
   useEffect(() => {
@@ -505,6 +525,8 @@ export default function App() {
     idlePlacedRef.current = [];
     clearRecoveryDraft(window.localStorage);
     setRecoveryDraft(null);
+    setImportedPieces([]);
+    setImportedAssets([]);
     setActiveDesign({ id: createDesignId(), name });
     dispatchHistory({ type: 'replace', placed: [] });
     setSelectedIds([]);
@@ -521,19 +543,49 @@ export default function App() {
     setDialogMode(null);
   }, []);
 
-  const openSavedDesign = useCallback((design: DesignDocument) => {
-    setGuideOpen(!guideSeenRef.current);
-    idlePlacedRef.current = design.placed;
-    setActiveDesign({ id: design.id, name: design.name, labelMode: design.labelMode });
-    dispatchHistory({ type: 'replace', placed: design.placed });
-    setSelectedIds([]);
-    setSelectionMode('move');
-    setHingeMode(false);
-    setBadgeAxis(null);
-    setDialogMode(null);
-    setStartupDialog(false);
-    setSaveStatus(null);
+  const openSavedDesign = useCallback((design: DesignDocument): string | null => {
+    try {
+      validateProject(design);
+      const staged = restoreImportedAssets(design.imports ?? []);
+      staged.forEach(({ piece, geometry }) => registerGeometry(piece.geometryId!, geometry));
+      setImportedPieces(staged.map(({ piece }) => piece));
+      setImportedAssets(design.imports ?? []);
+      setGuideOpen(!guideSeenRef.current);
+      idlePlacedRef.current = design.placed;
+      setActiveDesign({ id: design.id, name: design.name, labelMode: design.labelMode });
+      dispatchHistory({ type: 'replace', placed: design.placed });
+      setSelectedIds([]);
+      setSelectionMode('move');
+      setHingeMode(false);
+      setBadgeAxis(null);
+      setDialogMode(null);
+      setBackupOpen(false);
+      setStartupDialog(false);
+      setSaveStatus(null);
+      setStorageError(null);
+      return null;
+    } catch (reason) {
+      const error = reason instanceof Error ? reason.message : 'Could not open this design.';
+      setStorageError(error);
+      return error;
+    }
   }, []);
+
+  const exportBackup = useCallback(() => {
+    try {
+      const text = serializeBackup({ ...currentDocument, updatedAt: Date.now() });
+      const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = backupFilename(activeDesign.name);
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setSaveStatus('Backup exported');
+      setStorageError(null);
+    } catch (reason) {
+      setStorageError(reason instanceof Error ? reason.message : 'Could not export this design.');
+    }
+  }, [activeDesign.name, currentDocument]);
 
   const saveActiveDesign = useCallback(() => {
     if (activeDesign.name.trim().length === 0) {
@@ -542,8 +594,7 @@ export default function App() {
     }
     try {
       const saved = persistDesign(window.localStorage, {
-        ...activeDesign,
-        placed,
+        ...currentDocument,
         updatedAt: Date.now(),
       });
       setSavedDesigns(saved);
@@ -552,7 +603,7 @@ export default function App() {
     } catch {
       setStorageError('Could not save this design in this browser.');
     }
-  }, [activeDesign, placed, showDialog]);
+  }, [activeDesign, currentDocument, showDialog]);
 
   const removeSavedDesign = useCallback((id: string) => {
     try {
@@ -564,24 +615,8 @@ export default function App() {
   }, []);
 
   const restoreRecovery = useCallback(() => {
-    if (recoveryDraft === null) {
-      return;
-    }
-    setGuideOpen(!guideSeenRef.current);
-    idlePlacedRef.current = recoveryDraft.placed;
-    setActiveDesign({
-      id: recoveryDraft.id,
-      name: recoveryDraft.name,
-      labelMode: recoveryDraft.labelMode,
-    });
-    dispatchHistory({ type: 'replace', placed: recoveryDraft.placed });
-    setSelectedIds([]);
-    setSelectionMode('move');
-    setHingeMode(false);
-    setBadgeAxis(null);
-    setDialogMode(null);
-    setStartupDialog(false);
-  }, [recoveryDraft]);
+    if (recoveryDraft !== null) openSavedDesign(recoveryDraft);
+  }, [recoveryDraft, openSavedDesign]);
 
   const discardRecovery = useCallback(() => {
     clearRecoveryDraft(window.localStorage);
@@ -979,6 +1014,11 @@ export default function App() {
   return (
     <div className="app">
       <Header
+        onExport={exportBackup}
+        onImportBackup={() => {
+          cancelConnection();
+          setBackupOpen(true);
+        }}
         onHelp={() => setGuideOpen(true)}
         tools={
           <div className="header-tools">
@@ -1279,7 +1319,13 @@ export default function App() {
           </section>
         </div>
       )}
-      {dialogMode !== null && (
+      {backupOpen && (
+        <ProjectBackupDialog
+          onClose={closeBackup}
+          onOpen={(design) => openSavedDesign({ ...design, id: createDesignId() })}
+        />
+      )}
+      {dialogMode !== null && !backupOpen && (
         <ProjectDialog
           key={dialogMode}
           mode={dialogMode}
@@ -1295,6 +1341,7 @@ export default function App() {
           onRestore={restoreRecovery}
           onDiscardRecovery={discardRecovery}
           onShowOpen={() => showDialog('open')}
+          onImportBackup={() => setBackupOpen(true)}
         />
       )}
     </div>

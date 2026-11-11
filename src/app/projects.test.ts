@@ -83,4 +83,23 @@ describe('local design storage', () => {
     expect(readSavedDesigns(storage)).toEqual([]);
     expect(readRecoveryDraft(storage)).toBeNull();
   });
+
+  it('retains custom mesh assets in saved designs and recovery comparisons', () => {
+    const storage = new MemoryStorage();
+    const asset = {
+      id: 'custom',
+      name: 'Custom part',
+      category: 'girders' as const,
+      colourName: 'Grey',
+      colourHex: '#808080',
+      positions: 'AAAA',
+      normals: 'AAAA',
+    };
+    const imported = { ...design, imports: [asset] };
+    saveDesign(storage, imported);
+    writeRecoveryDraft(storage, imported);
+    expect(readSavedDesigns(storage)).toEqual([imported]);
+    expect(readRecoveryDraft(storage)).toEqual(imported);
+    expect(recoveryMatchesSavedDesign(imported, [design])).toBe(false);
+  });
 });

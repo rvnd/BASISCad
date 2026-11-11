@@ -2,6 +2,8 @@ import { isLabelMode, isLabelPlacement } from './labels';
 import type { LabelMode } from './labels';
 import type { PlacedPiece } from './design';
 import { isFastenerConnection } from './connections';
+import { isImportedPieceAsset } from './projectAssets';
+import type { ImportedPieceAsset } from './projectAssets';
 
 export const SAVED_DESIGNS_STORAGE_KEY = 'basiscad.saved-designs.v1';
 export const RECOVERY_STORAGE_KEY = 'basiscad.recovery.v1';
@@ -12,6 +14,7 @@ export interface DesignDocument {
   placed: readonly PlacedPiece[];
   updatedAt: number;
   labelMode?: LabelMode;
+  imports?: readonly ImportedPieceAsset[];
 }
 
 export interface StorageLike {
@@ -56,7 +59,7 @@ function isPlacedPiece(value: unknown): value is PlacedPiece {
   );
 }
 
-function isDesignDocument(value: unknown): value is DesignDocument {
+export function isDesignDocument(value: unknown): value is DesignDocument {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
@@ -66,6 +69,8 @@ function isDesignDocument(value: unknown): value is DesignDocument {
     typeof document.name === 'string' &&
     document.name.trim().length > 0 &&
     (document.labelMode === undefined || isLabelMode(document.labelMode)) &&
+    (document.imports === undefined ||
+      (Array.isArray(document.imports) && document.imports.every(isImportedPieceAsset))) &&
     Array.isArray(document.placed) &&
     document.placed.every(isPlacedPiece) &&
     (!document.placed.some((piece) => piece.fastener) ||
@@ -164,6 +169,7 @@ export function recoveryMatchesSavedDesign(
     match !== undefined &&
     match.name === recovery.name &&
     (match.labelMode ?? 'off') === (recovery.labelMode ?? 'off') &&
+    JSON.stringify(match.imports ?? []) === JSON.stringify(recovery.imports ?? []) &&
     JSON.stringify(match.placed) === JSON.stringify(recovery.placed)
   );
 }

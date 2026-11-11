@@ -18,6 +18,8 @@ interface HeaderProps {
   canPrint: boolean;
   onPrint: () => void;
   onHelp: () => void;
+  onExport: () => void;
+  onImportBackup: () => void;
 }
 
 export default function Header({
@@ -35,6 +37,8 @@ export default function Header({
   canPrint,
   onPrint,
   onHelp,
+  onExport,
+  onImportBackup,
   tools,
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -67,6 +71,8 @@ export default function Header({
     { label: 'Open Design', onClick: onOpen },
     { label: 'New Design', onClick: onNew },
     { label: 'Manage Projects', onClick: onManage },
+    { label: 'Export Backup', onClick: onExport },
+    { label: 'Open Backup', onClick: onImportBackup },
   ];
 
   return (
