@@ -2,13 +2,14 @@ import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:5173/BASISCad/';
 const usingRelay = Boolean(process.env.PLAYWRIGHT_RELAY_URL);
+const usingCDP = Boolean(process.env.PLAYWRIGHT_CDP_URL);
 const port = new URL(baseURL).port || '5173';
 
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: !usingRelay,
+  fullyParallel: !usingRelay && !usingCDP,
   forbidOnly: Boolean(process.env.CI),
-  workers: usingRelay ? 1 : process.env.CI ? 2 : undefined,
+  workers: usingRelay || usingCDP ? 1 : process.env.CI ? 2 : undefined,
   // The extension transports each input event; long local drags need a larger budget.
   timeout: usingRelay ? 90_000 : 30_000,
   reporter: [['list'], ['html', { open: 'never' }]],
@@ -28,7 +29,7 @@ export default defineConfig({
   webServer: {
     command: `npm run dev -- --host 127.0.0.1 --port ${port} --strictPort`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI && !usingRelay,
+    reuseExistingServer: usingCDP || (!process.env.CI && !usingRelay),
     timeout: 30_000,
   },
 });

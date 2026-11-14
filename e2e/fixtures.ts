@@ -88,7 +88,26 @@ const browserTest = process.env.PLAYWRIGHT_RELAY_URL
         }
       },
     })
-  : base;
+  : process.env.PLAYWRIGHT_CDP_URL
+    ? base.extend({
+        browser: [
+          async ({ playwright }, runTest) => {
+            const endpoint = new URL(process.env.PLAYWRIGHT_CDP_URL!);
+            if (!['127.0.0.1', 'localhost', '[::1]'].includes(endpoint.hostname))
+              throw new Error('Local browser tests require a loopback CDP endpoint.');
+            const browser = await playwright.chromium.connectOverCDP(endpoint.href, {
+              noDefaults: true,
+            });
+            try {
+              await runTest(browser);
+            } finally {
+              await browser.close();
+            }
+          },
+          { scope: 'worker' },
+        ],
+      })
+    : base;
 
 // Ordinary feature tests start with the tutorial dismissed. Guide tests use
 // genuine first-use storage and exercise its persistence themselves.

@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { build } from 'vite';
 
 const large = process.argv.includes('--large');
+const gravity = process.argv.includes('--gravity');
 const profile = process.argv.includes('--profile');
 const label = process.argv.slice(2).find((argument) => !argument.startsWith('--')) || 'current';
 if (!/^[a-z0-9-]+$/i.test(label)) throw new Error('Use a simple alphanumeric report label.');
@@ -10,7 +11,11 @@ await build({
   configFile: false,
   logLevel: 'silent',
   build: {
-    ssr: large ? 'scripts/benchmark-large-designs.ts' : 'scripts/benchmark-interactions.ts',
+    ssr: gravity
+      ? 'scripts/benchmark-gravity.ts'
+      : large
+        ? 'scripts/benchmark-large-designs.ts'
+        : 'scripts/benchmark-interactions.ts',
     outDir: 'tmp/performance',
     emptyOutDir: false,
     rolldownOptions: { output: { entryFileNames: 'benchmark.mjs' } },

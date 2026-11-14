@@ -57,6 +57,9 @@ jobs:
       - name: Interaction benchmark
         run: npm run benchmark -- ci-large --large
 
+      - name: Gravity benchmark
+        run: npm run benchmark -- ci-gravity --gravity
+
       - name: Upload performance measurements
         if: always()
         uses: actions/upload-artifact@v4
