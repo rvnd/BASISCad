@@ -56,6 +56,8 @@ import type { RotationAxis } from './rotationHandles';
  */
 
 export interface DesignScene {
+  simulation(enabled: boolean): void;
+  applySimulation(ids: readonly string[], poses: Float32Array): void;
   blueprintLabels(
     camera: THREE.Camera,
     width: number,
@@ -317,6 +319,26 @@ export function createDesignScene(scene: THREE.Scene): DesignScene {
   };
 
   return {
+    simulation(enabled) {
+      holeMarkers.visible = !enabled;
+      if (enabled) {
+        handlesEnabled = false;
+        hideProtractor(protractor);
+        for (const object of byId.values()) {
+          const selection = object.getObjectByName('piece-selection');
+          if (selection) selection.visible = false;
+        }
+        updateHandles();
+      }
+    },
+    applySimulation(ids, poses) {
+      ids.forEach((id, i) => {
+        const object = byId.get(id);
+        if (!object) return;
+        object.position.fromArray(poses, i * 7);
+        object.quaternion.fromArray(poses, i * 7 + 3);
+      });
+    },
     blueprintLabels(camera, width, height, mode) {
       return projectBlueprintLabels(
         lastPlaced,

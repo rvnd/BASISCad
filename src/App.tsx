@@ -1,4 +1,8 @@
 import ProjectBackupDialog from './components/ProjectBackupDialog';
+import GravityControls, { TestMenu } from './components/GravityControls';
+import type { GravityStatus, GravitySummary } from './app/gravity';
+import { startGravity } from './three/gravityController';
+import { prepareGravityInput } from './three/gravityInput';
 import DesignPieces from './components/DesignPieces';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { backupFilename, serializeBackup, validateProject } from './app/projectBackup';
@@ -164,6 +168,35 @@ export default function App() {
     viewportRef.current?.setTabletAction(tabletInput ? tabletAction : null);
   }, [tabletInput, tabletAction, viewportReady]);
   const [currentView, setCurrentView] = useState<CameraViewId>(DEFAULT_CAMERA_VIEW_ID);
+  const [gravityOpen, setGravityOpen] = useState(false);
+  const [acceleration, setAcceleration] = useState(9.81);
+  const [gravity, setGravity] = useState<{
+    status: GravityStatus;
+    seconds: number;
+    summary: GravitySummary | null;
+    error: string | null;
+  }>({ status: 'idle', seconds: 0, summary: null, error: null });
+  const gravityActive = gravity.status !== 'idle' && gravity.status !== 'error';
+  const gravityActiveRef = useRef(false);
+  const gravityEpoch = useRef(0);
+  const gravityController = useRef<ReturnType<typeof startGravity> | null>(null);
+  const gravityView = useRef<CameraViewId>(DEFAULT_CAMERA_VIEW_ID);
+  const resetGravity = useCallback(() => {
+    gravityEpoch.current++;
+    gravityController.current?.stop();
+    gravityController.current = null;
+    viewportRef.current?.setSimulationActive(false);
+    if (gravityActiveRef.current) setCurrentView(gravityView.current);
+    gravityActiveRef.current = false;
+    setGravity({ status: 'idle', seconds: 0, summary: null, error: null });
+  }, []);
+  useEffect(
+    () => () => {
+      gravityEpoch.current++;
+      gravityController.current?.stop();
+    },
+    [],
+  );
   const [importedPieces, setImportedPieces] = useState<readonly LibraryPiece[]>([]);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -233,8 +266,8 @@ export default function App() {
   const [pendingScrew, setPendingScrew] = useState<HoleRef | null>(null);
   const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
   useEffect(() => {
-    viewportRef.current?.setLabelsMode(activeDesign.labelMode ?? 'off');
-  }, [activeDesign.labelMode, viewportReady]);
+    viewportRef.current?.setLabelsMode(gravityActive ? 'off' : (activeDesign.labelMode ?? 'off'));
+  }, [activeDesign.labelMode, viewportReady, gravityActive]);
   const cancelConnection = useCallback(() => {
     idlePlacedRef.current = placedRef.current;
     setConnecting(false);
@@ -370,6 +403,7 @@ export default function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (gravityActiveRef.current) return;
       if (event.key === 'Escape') {
         cancelConnection();
         return;
@@ -530,13 +564,15 @@ export default function App() {
 
   const showDialog = useCallback(
     (mode: ProjectDialogMode) => {
+      resetGravity();
+      setGravityOpen(false);
       cancelConnection();
       if (mode === 'open' || mode === 'manage') {
         setSavedDesigns(readSavedDesigns(window.localStorage));
       }
       setDialogMode(mode);
     },
-    [cancelConnection],
+    [cancelConnection, resetGravity],
   );
 
   const startDesign = useCallback((name: string) => {
@@ -933,6 +969,7 @@ export default function App() {
   }, []);
 
   const onViewportKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (gravityActiveRef.current) return;
     if (
       event.target !== event.currentTarget ||
       event.altKey ||
@@ -1090,11 +1127,64 @@ export default function App() {
         }
       : null;
 
+  const beginGravity = () => {
+    resetGravity();
+    cancelConnection();
+    const epoch = gravityEpoch.current;
+    try {
+      const input = prepareGravityInput(placed, libraryById, acceleration);
+      const ids = input.pieces.map((piece) => piece.id);
+      gravityView.current = currentView;
+      gravityActiveRef.current = true;
+      setGravity({ status: 'loading', seconds: 0, summary: null, error: null });
+      viewportRef.current?.setSimulationActive(true);
+      let lastUi = 0;
+      gravityController.current = startGravity(input, (response) => {
+        if (epoch !== gravityEpoch.current) return;
+        if (response.type === 'error') {
+          gravityController.current?.stop();
+          gravityActiveRef.current = false;
+          viewportRef.current?.setSimulationActive(false);
+          setGravity((previous) => ({ ...previous, status: 'error', error: response.message }));
+        } else if (response.type === 'ready')
+          setGravity({ status: 'running', seconds: 0, summary: response.summary, error: null });
+        else {
+          viewportRef.current?.applySimulationFrame(ids, response.frame.poses);
+          const now = performance.now();
+          if (response.type !== 'frame' || now - lastUi > 200) {
+            lastUi = now;
+            setGravity((previous) => ({
+              ...previous,
+              seconds: response.frame.seconds,
+              status:
+                response.type === 'paused'
+                  ? 'paused'
+                  : response.type === 'settled'
+                    ? 'settled'
+                    : previous.status,
+            }));
+          }
+        }
+      });
+    } catch (reason) {
+      gravityActiveRef.current = false;
+      viewportRef.current?.setSimulationActive(false);
+      setGravity({
+        status: 'error',
+        seconds: 0,
+        summary: null,
+        error: reason instanceof Error ? reason.message : 'Could not start gravity.',
+      });
+    }
+  };
+
   return (
     <div className="app">
       <Header
         onExport={exportBackup}
         onImportBackup={() => {
+          resetGravity();
+          setGravityOpen(false);
           cancelConnection();
           setBackupOpen(true);
         }}
@@ -1102,9 +1192,9 @@ export default function App() {
         tools={
           <div className="header-tools">
             <AssemblyControls
-              canGroup={selected.length >= 2 && !pose?.groupId}
-              canUngroup={selected.some((piece) => piece.groupId)}
-              canLock={selected.length > 0}
+              canGroup={!gravityActive && selected.length >= 2 && !pose?.groupId}
+              canUngroup={!gravityActive && selected.some((piece) => piece.groupId)}
+              canLock={!gravityActive && selected.length > 0}
               locked={selected.length > 0 && selected.every((piece) => piece.locked)}
               onGroup={() => {
                 const groupId = `group-${createDesignId()}`;
@@ -1135,7 +1225,9 @@ export default function App() {
             <ConnectControls
               active={connecting}
               disabled={
-                placed.filter((piece) => !piece.fastener).length < 2 || pendingScrew !== null
+                gravityActive ||
+                placed.filter((piece) => !piece.fastener).length < 2 ||
+                pendingScrew !== null
               }
               options={connectionOptions}
               canRetry={retryHoles !== null && pendingScrew === null}
@@ -1157,11 +1249,24 @@ export default function App() {
                 }
               }}
             />
+            <TestMenu
+              disabled={
+                !viewportReady ||
+                !placed.length ||
+                importing ||
+                history.transactionStart !== null ||
+                gravityActive
+              }
+              onGravity={() => {
+                cancelConnection();
+                setGravityOpen(true);
+              }}
+            />
           </div>
         }
         designName={activeDesign.name || 'Name this design'}
-        canUndo={canUndo(history)}
-        canRedo={canRedo(history)}
+        canUndo={!gravityActive && canUndo(history)}
+        canRedo={!gravityActive && canRedo(history)}
         saveStatus={saveStatus}
         onRename={() => showDialog('rename')}
         onUndo={() => {
@@ -1174,7 +1279,7 @@ export default function App() {
         onOpen={() => showDialog('open')}
         onNew={() => showDialog('new')}
         onManage={() => showDialog('manage')}
-        canPrint={viewportReady && placed.length > 0}
+        canPrint={!gravityActive && viewportReady && placed.length > 0}
         onPrint={() => {
           cancelConnection();
           setPrintError(null);
@@ -1183,6 +1288,7 @@ export default function App() {
       />
       <main className="app-main">
         <ViewControls
+          editingDisabled={gravityActive}
           designPieces={
             <DesignPieces
               pieces={placed.map((piece) => ({
@@ -1194,7 +1300,7 @@ export default function App() {
                 grouped: !!piece.groupId,
               }))}
               selectedIds={selectedIds}
-              disabled={connecting || fastening || dialogMode !== null}
+              disabled={gravityActive || connecting || fastening || dialogMode !== null}
               onSelect={selectDesignPiece}
             />
           }
@@ -1221,7 +1327,7 @@ export default function App() {
           }}
         />
         <div className={`viewport-wrap${tabletInput ? ' tablet-input' : ''}`}>
-          {tabletInput && (
+          {tabletInput && !gravityActive && (
             <TabletControls
               action={tabletAction}
               disabled={
@@ -1240,18 +1346,20 @@ export default function App() {
             designCallbacks={designCallbacks}
             onKeyDown={onViewportKeyDown}
           />
-          <BlueprintLabels
-            labels={blueprintLabels}
-            move={labelsMove && !connecting && !fastening}
-            onBegin={() => dispatchHistory({ type: 'begin-edit' })}
-            onEnd={() => dispatchHistory({ type: 'end-edit' })}
-            onMove={(id, offset) =>
-              dispatchHistory({
-                type: 'edit',
-                apply: (previous) => updateLabel(previous, id, { offset }),
-              })
-            }
-          />
+          {!gravityActive && (
+            <BlueprintLabels
+              labels={blueprintLabels}
+              move={labelsMove && !connecting && !fastening}
+              onBegin={() => dispatchHistory({ type: 'begin-edit' })}
+              onEnd={() => dispatchHistory({ type: 'end-edit' })}
+              onMove={(id, offset) =>
+                dispatchHistory({
+                  type: 'edit',
+                  apply: (previous) => updateLabel(previous, id, { offset }),
+                })
+              }
+            />
+          )}
           {connecting && <HolePicker targets={holeTargets} first={firstHole} onPick={pickHole} />}
           {fastening && (
             <HolePicker
@@ -1277,7 +1385,31 @@ export default function App() {
               {storageError}
             </p>
           )}
-          {!connecting && !fastening && (
+          {gravityOpen && (
+            <GravityControls
+              status={gravity.status}
+              acceleration={acceleration}
+              seconds={gravity.seconds}
+              summary={gravity.summary}
+              error={gravity.error}
+              onAcceleration={(value) => {
+                setAcceleration(value);
+                gravityController.current?.gravity(value);
+              }}
+              onStart={beginGravity}
+              onPause={() => gravityController.current?.pause()}
+              onResume={() => {
+                gravityController.current?.resume();
+                setGravity((previous) => ({ ...previous, status: 'running' }));
+              }}
+              onReset={resetGravity}
+              onClose={() => {
+                resetGravity();
+                setGravityOpen(false);
+              }}
+            />
+          )}
+          {!gravityOpen && !connecting && !fastening && (
             <MoveRotatePanel
               key={singleSelected?.id ?? `multi-${selectedIds.length}`}
               single={singleSelected}
@@ -1297,7 +1429,8 @@ export default function App() {
               onHingeAngle={setHingeAngle}
             />
           )}
-          {!connecting &&
+          {!gravityOpen &&
+            !connecting &&
             !fastening &&
             badgeAxis !== null &&
             selectionMode === 'rotate' &&
@@ -1320,27 +1453,31 @@ export default function App() {
             })()}
         </div>
         <ShapesPanel
+          disabled={gravityActive}
           labelsPanel={
-            <LabelsPanel
-              mode={activeDesign.labelMode ?? 'off'}
-              move={labelsMove}
-              pieces={placed.map((piece) => ({
-                id: piece.id,
-                name: piece.fastener
-                  ? fastenerName(piece.fastener)
-                  : (libraryPieces.find((entry) => entry.id === piece.libraryId)?.name ?? 'Piece'),
-                hidden: piece.label?.hidden ?? false,
-              }))}
-              onMode={(labelMode) => setActiveDesign((previous) => ({ ...previous, labelMode }))}
-              onMove={setLabelsMove}
-              onVisible={(id, visible) =>
-                dispatchHistory({
-                  type: 'edit',
-                  apply: (previous) => updateLabel(previous, id, { hidden: !visible }),
-                })
-              }
-              onReset={() => dispatchHistory({ type: 'edit', apply: resetLabels })}
-            />
+            <fieldset className="gravity-label-controls" disabled={gravityActive}>
+              <LabelsPanel
+                mode={activeDesign.labelMode ?? 'off'}
+                move={labelsMove}
+                pieces={placed.map((piece) => ({
+                  id: piece.id,
+                  name: piece.fastener
+                    ? fastenerName(piece.fastener)
+                    : (libraryPieces.find((entry) => entry.id === piece.libraryId)?.name ??
+                      'Piece'),
+                  hidden: piece.label?.hidden ?? false,
+                }))}
+                onMode={(labelMode) => setActiveDesign((previous) => ({ ...previous, labelMode }))}
+                onMove={setLabelsMove}
+                onVisible={(id, visible) =>
+                  dispatchHistory({
+                    type: 'edit',
+                    apply: (previous) => updateLabel(previous, id, { hidden: !visible }),
+                  })
+                }
+                onReset={() => dispatchHistory({ type: 'edit', apply: resetLabels })}
+              />
+            </fieldset>
           }
           pieces={libraryPieces}
           onImport={onImport}

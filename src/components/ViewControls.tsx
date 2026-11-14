@@ -14,6 +14,7 @@ import type { CameraViewId } from '../three/cameraViews';
  */
 
 interface ViewControlsProps {
+  editingDisabled?: boolean;
   designPieces?: ReactNode;
   currentView: CameraViewId;
   onSelectView: (viewId: CameraViewId) => void;
@@ -38,6 +39,7 @@ interface ViewControlsProps {
 }
 
 export default function ViewControls({
+  editingDisabled,
   designPieces,
   currentView,
   onSelectView,
@@ -86,7 +88,7 @@ export default function ViewControls({
         <button
           type="button"
           className="control-button center-project-button"
-          disabled={!hasPieces}
+          disabled={!hasPieces || editingDisabled}
           onClick={onCenterProject}
         >
           Center Project
@@ -94,6 +96,7 @@ export default function ViewControls({
         <label className="snap-holes-toggle">
           <input
             type="checkbox"
+            disabled={editingDisabled}
             checked={snapHoles}
             onChange={(event) => onSnapHolesChange(event.currentTarget.checked)}
           />
@@ -117,7 +120,7 @@ export default function ViewControls({
           aria-label="Screw + Nut"
           title="Add a paired screw and nut at an aligned hole"
           aria-pressed={fastening}
-          disabled={!canFasten}
+          disabled={!canFasten || editingDisabled}
           onClick={onFasten}
         >
           ⊕ Screw + Nut
@@ -125,7 +128,7 @@ export default function ViewControls({
         <button
           type="button"
           className="control-button trash-button"
-          disabled={selectedCount === 0}
+          disabled={selectedCount === 0 || editingDisabled}
           title={
             selectedCount === 0
               ? 'Select a placed piece first'

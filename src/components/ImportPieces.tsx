@@ -12,6 +12,7 @@ import { isSupportedPieceFile } from '../three/loadPieceFile';
  */
 
 interface ImportPiecesProps {
+  disabled?: boolean;
   /** Called with the file and the user's category/colour choices. */
   onImport: (file: File, category: PieceCategory, colourHex: string) => void;
   /** True while an import is being loaded. */
@@ -20,7 +21,7 @@ interface ImportPiecesProps {
   error: string | null;
 }
 
-export default function ImportPieces({ onImport, importing, error }: ImportPiecesProps) {
+export default function ImportPieces({ onImport, importing, error, disabled }: ImportPiecesProps) {
   const [category, setCategory] = useState<PieceCategory>('girders');
   const [colourHex, setColourHex] = useState<string>(PIECE_COLOURS[4]?.hex ?? '#808080');
 
@@ -69,7 +70,7 @@ export default function ImportPieces({ onImport, importing, error }: ImportPiece
           className="import-file-input"
           type="file"
           accept=".stl,.obj"
-          disabled={importing}
+          disabled={importing || disabled}
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = '';

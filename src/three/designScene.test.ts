@@ -34,6 +34,32 @@ function testBox(width: number, height: number, depth: number): THREE.BoxGeometr
 }
 
 describe('designScene', () => {
+  it('renders continuous simulation poses without edit lift and restores the original data and objects', () => {
+    const scene = new THREE.Scene(),
+      design = createDesignScene(scene);
+    const mesh = testBox(50, 3, 12);
+    registerGeometry('gravity-scene-box', mesh);
+    const library = [libraryPiece('girder-1x4', 'gravity-scene-box')];
+    const placed = [createPlacedPiece('gravity-scene', 'girder-1x4', 0, small)];
+    const data = JSON.stringify(placed);
+    design.sync(placed, library, ['gravity-scene']);
+    const object = scene.getObjectByName('design')!.children[0]!;
+    const start = object.position.clone();
+    design.simulation(true);
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0.17);
+    design.applySimulation(['gravity-scene'], new Float32Array([10, -200, 30, q.x, q.y, q.z, q.w]));
+    expect(object.position.y).toBe(-200);
+    expect(object.quaternion.angleTo(q)).toBeLessThan(0.001);
+    expect(object.getObjectByName('piece-selection')!.visible).toBe(false);
+    expect(JSON.stringify(placed)).toBe(data);
+    design.simulation(false);
+    design.sync(placed, library, ['gravity-scene']);
+    expect(scene.getObjectByName('design')!.children[0]).toBe(object);
+    expect(object.position.equals(start)).toBe(true);
+    expect(object.getObjectByName('piece-selection')!.visible).toBe(true);
+    design.dispose();
+    mesh.dispose();
+  });
   it('adds one group per placed piece, at its position, and removes it again', () => {
     const scene = new THREE.Scene();
     const design = createDesignScene(scene);

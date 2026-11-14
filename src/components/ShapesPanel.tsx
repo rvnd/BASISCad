@@ -23,6 +23,7 @@ import ImportPieces from './ImportPieces';
  */
 
 interface ShapesPanelProps {
+  disabled?: boolean;
   labelsPanel?: ReactNode;
   pieces: readonly LibraryPiece[];
   onImport: (file: File, category: PieceCategory, colourHex: string) => void;
@@ -32,7 +33,15 @@ interface ShapesPanelProps {
   onPlace: (libraryId: string) => void;
 }
 
-function PieceEntry({ piece, onPlace }: { piece: LibraryPiece; onPlace: (id: string) => void }) {
+function PieceEntry({
+  piece,
+  onPlace,
+  disabled,
+}: {
+  piece: LibraryPiece;
+  onPlace: (id: string) => void;
+  disabled?: boolean;
+}) {
   const ready = isPieceReady(piece);
   // A bundled file that is still loading is not ready yet, but it is
   // not "STL needed" either — its file is already bundled.
@@ -60,7 +69,7 @@ function PieceEntry({ piece, onPlace }: { piece: LibraryPiece; onPlace: (id: str
       <button
         type="button"
         className="library-place"
-        disabled={!ready}
+        disabled={!ready || disabled}
         title={
           ready
             ? `Place ${piece.name} on the workplane`
@@ -77,6 +86,7 @@ function PieceEntry({ piece, onPlace }: { piece: LibraryPiece; onPlace: (id: str
 }
 
 export default function ShapesPanel({
+  disabled,
   labelsPanel,
   pieces,
   onImport,
@@ -121,7 +131,12 @@ export default function ShapesPanel({
         </div>
         {!collapsed && (
           <>
-            <ImportPieces onImport={onImport} importing={importing} error={importError} />
+            <ImportPieces
+              onImport={onImport}
+              importing={importing}
+              error={importError}
+              disabled={disabled}
+            />
             {PIECE_CATEGORIES.map((category) => {
               // Only pieces with a model file are listed; a section
               // with none is hidden rather than shown empty.
@@ -155,7 +170,12 @@ export default function ShapesPanel({
                   {!sectionCollapsed && (
                     <ul className="library-list">
                       {sectionPieces.map((piece) => (
-                        <PieceEntry key={piece.id} piece={piece} onPlace={onPlace} />
+                        <PieceEntry
+                          key={piece.id}
+                          piece={piece}
+                          onPlace={onPlace}
+                          disabled={disabled}
+                        />
                       ))}
                     </ul>
                   )}

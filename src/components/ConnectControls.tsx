@@ -51,6 +51,7 @@ export default function ConnectControls({
         type="button"
         className="tool-button"
         aria-label="Connection options"
+        disabled={disabled}
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >

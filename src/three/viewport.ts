@@ -31,6 +31,8 @@ import type { RotationAxis } from './rotationHandles';
  */
 
 export interface ViewportHandle {
+  setSimulationActive(active: boolean): void;
+  applySimulationFrame(ids: readonly string[], poses: Float32Array): void;
   setTabletAction(action: TabletAction | null): void;
   setLabelsMode(mode: LabelMode): void;
   setHingeEnabled(enabled: boolean): void;
@@ -159,6 +161,19 @@ export function createViewport(
 
   // Placed pieces (Milestone 3): the design scene owns their meshes.
   const designScene = createDesignScene(scene);
+  let simulationActive = false;
+  let simulationCamera: { position: THREE.Vector3; target: THREE.Vector3 } | undefined;
+  let originalDesign:
+    | { placed: readonly PlacedPiece[]; library: readonly LibraryPiece[]; ids: readonly string[] }
+    | undefined;
+  const recoveryFloor = new THREE.Mesh(
+    new THREE.PlaneGeometry(6000, 6000),
+    new THREE.MeshBasicMaterial({ color: 0xe9e9e9, side: THREE.DoubleSide }),
+  );
+  recoveryFloor.rotation.x = -Math.PI / 2;
+  recoveryFloor.position.y = -1000;
+  recoveryFloor.visible = false;
+  scene.add(recoveryFloor);
 
   // Pointer interaction with pieces. A pointer-down on a piece takes
   // over the gesture (OrbitControls is disabled for it): a release
@@ -308,6 +323,7 @@ export function createViewport(
   };
 
   const onPointerDown = (event: PointerEvent): void => {
+    if (simulationActive) return;
     if (holePicking) return;
     if (gesture?.kind === 'tablet') return;
     downAt = { x: event.clientX, y: event.clientY };
@@ -659,6 +675,51 @@ export function createViewport(
   };
 
   return {
+    setSimulationActive(active) {
+      if (active && !simulationActive)
+        simulationCamera = { position: camera.position.clone(), target: controls.target.clone() };
+      simulationActive = active;
+      recoveryFloor.visible = active;
+      controls.maxDistance = active ? 50000 : 4000;
+      camera.far = active ? 100000 : 10000;
+      camera.updateProjectionMatrix();
+      designScene.simulation(active);
+      if (!active && originalDesign)
+        designScene.sync(originalDesign.placed, originalDesign.library, originalDesign.ids);
+      if (!active && simulationCamera) {
+        camera.position.copy(simulationCamera.position);
+        controls.target.copy(simulationCamera.target);
+        controls.update();
+        simulationCamera = undefined;
+      }
+      designScene.setHandlesEnabled(
+        !active && !holePicking && !hingeEnabled && selectionMode === 'rotate',
+      );
+      invalidate();
+    },
+    applySimulationFrame(ids, poses) {
+      if (!simulationActive) return;
+      designScene.applySimulation(ids, poses);
+      // Keep the whole result reachable if parts leave the workplane; ordinary orbit stays free.
+      const bounds = new THREE.Box3();
+      let outside = false;
+      ids.forEach((_, i) => {
+        const position = new THREE.Vector3().fromArray(poses, i * 7);
+        bounds.expandByPoint(position);
+        const ndc = position.clone().project(camera);
+        if (Math.abs(ndc.x) > 0.9 || Math.abs(ndc.y) > 0.9 || ndc.z > 1) outside = true;
+      });
+      if (outside && !bounds.isEmpty()) {
+        const centre = bounds.getCenter(new THREE.Vector3());
+        const offset = camera.position.clone().sub(controls.target);
+        const distance = Math.max(1000, bounds.getSize(new THREE.Vector3()).length() * 1.6);
+        if (offset.length() < distance) offset.setLength(distance);
+        controls.target.copy(centre);
+        camera.position.copy(centre).add(offset);
+        controls.update();
+      }
+      invalidate();
+    },
     setLabelsMode(mode): void {
       labelsMode = mode;
       holesDirty = true;
@@ -697,6 +758,8 @@ export function createViewport(
       library: readonly LibraryPiece[],
       selectedIds: readonly string[],
     ): void {
+      originalDesign = { placed, library, ids: selectedIds };
+      if (simulationActive) return;
       selectedId = selectedIds[0] ?? null;
       designScene.sync(placed, library, selectedIds);
       invalidate();
