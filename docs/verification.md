@@ -36,12 +36,13 @@ or performance on other devices or pixel densities. Stock mesh creation in the
 
 ## Gates and limits
 
-The suite contains 224 unit tests and 50 Chromium cases. CI checks formatting,
+The suite now contains 239 unit tests and 53 Chromium cases. CI checks formatting,
 types, lint, units, build, browser behavior and the geometry benchmark before
 deploying that run's artifact. JSON performance measurements and print proofs are
 retained as CI artifacts. See [CI runs](https://github.com/rvnd/BASISCad/actions).
 
-Local browser interaction works through Agent Conductor. Its reload/navigation
-commands stalled, and direct Playwright attachment to that Chrome also stalled;
-refresh and actual download checks use native CI. Physical tablet testing remains
-deferred. Physics acceptance remains pending.
+Local Chromium validation now runs through `npm run test:e2e:acd`, including
+refresh, actual downloads, printing and gravity. See `docs/local-playwright.md`
+for the isolated browser and CDP compatibility adapter. Gravity acceptance and
+its active-design performance limits are recorded in `docs/gravity.md`. Physical
+tablet testing, wind, weights and ball acceptance remain pending.

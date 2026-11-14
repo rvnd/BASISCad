@@ -52,5 +52,5 @@ Shared CI hardware checks correctness; timing limits require controlled hardware
 4. Editing polish: improve keyboard navigation, numeric editing, and selection
    feedback, with clear cancellation and one undo step per completed action.
 
-Record verification and limitations for each workstream before advancing. Physics
-acceptance remains pending until the physics milestones are implemented.
+Record verification and limitations for each workstream before advancing. Gravity acceptance is recorded in `docs/gravity.md`; wind, weights and ball
+acceptance remain pending until their milestones are implemented.

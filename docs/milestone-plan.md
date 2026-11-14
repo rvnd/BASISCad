@@ -189,17 +189,19 @@ Goal: a structure can be tested under gravity and falls the way a real one would
 
 Steps:
 
-- [ ] Add a Test icon at the top of the screen, exactly the same size as the Group, Ungroup, and Lock icons beside it, opening a dropdown of tests.
-- [ ] Build the physics on a rigid-body engine (Rapier, running in the browser as WebAssembly, is the planned choice), with one body per piece and collisions that stop pieces passing through each other.
-- [ ] Add Gravity as the first test, with a slider for gravity strength and named presets so the amount means something: Moon, Mars, and Earth.
-- [ ] Unsupported pieces must tip, tumble, slide, and separate. A structure with nothing under it does not sink straight down intact, and the test must not shake like an earthquake.
-- [ ] Treat firmly tightened screwed joints, using the connections stored in Milestone 9, as one rigid assembly that moves together. A screw must never be left behind or drift out of its holes during a test.
-- [ ] A single-screw joint may still hinge under load; grouping alone, without a screw, holds nothing together.
-- [ ] Use the frozen material assumption — Bambu PLA Basic at 15% infill with firmly tightened #6-32 screws — for piece weights.
-- [ ] During and after a test, let the user orbit and zoom to inspect the result, and add Pause to inspect, Resume, and Reset design, where Reset restores the design exactly as it was before the test.
-- [ ] Say plainly in the test panel what the test does not do: it shows falling and support, and does not predict bending or breaking. Breaking loads are not calibrated — the published filament strength figures are for 100% infill test pieces, not 15% infill parts.
+- [x] Add a Test icon at the top of the screen, exactly the same size as the Group, Ungroup, and Lock icons beside it, opening a dropdown of tests.
+- [x] Build the physics on a rigid-body engine (Rapier, running in the browser as WebAssembly, is the planned choice), with one body per independent piece, compound bodies for fixed screwed assemblies, and collisions that stop pieces passing through each other.
+- [x] Add Gravity as the first test, with a slider for gravity strength and named presets so the amount means something: Moon, Mars, and Earth.
+- [x] Unsupported pieces must tip, tumble, slide, and separate. A structure with nothing under it does not sink straight down intact, and the test must not shake like an earthquake.
+- [x] Treat firmly tightened screwed joints, using the connections stored in Milestone 9, as one rigid assembly that moves together. A screw must never be left behind or drift out of its holes during a test.
+- [x] A single-screw joint may still hinge under load; grouping alone, without a screw, holds nothing together.
+- [x] Use the frozen material assumption — Bambu PLA Basic at 15% infill with firmly tightened #6-32 screws — for piece weights.
+- [x] During and after a test, let the user orbit and zoom to inspect the result, and add Pause to inspect, Resume, and Reset design, where Reset restores the design exactly as it was before the test.
+- [x] Say plainly in the test panel what the test does not do: it shows falling and support, and does not predict bending or breaking. Breaking loads are not calibrated — the published filament strength figures are for 100% infill test pieces, not 15% infill parts.
 
 Done when: an unsupported tower falls apart into separate pieces, a screwed cross stays together and keeps its screws in their holes, and Reset returns both to their pre-test positions.
+
+Verification: Rapier 0.12.0 is pinned from the local cache. The 239 unit tests and 53 local Chromium cases passed, including analytical free fall, stable support, bores, hinge anchors, exact data/scene restoration and worker cleanup. See `docs/gravity.md` for collider and mass assumptions, benchmark commands, and the slower playback of large raised designs. Physics poses remain transient. Physical tablet verification remains deferred.
 
 ## Milestone 16 — Test: high winds
 
